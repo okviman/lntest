@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 # block typosquatting. So: pip install ln-ttest, then `from lntest import ...`,
 # the way scikit-learn installs and imports as sklearn.
 name = "ln-ttest"
-version = "0.1.0"
+version = "0.1.1"
 description = "LN's t-test: differential expression testing on an asymptotically unbiased log-fold-change estimator"
 readme = "README.md"
 requires-python = ">=3.10"
