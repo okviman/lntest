@@ -41,11 +41,7 @@ pytest.importorskip("statsmodels")
 import anndata  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from lntest import (  # noqa: E402
-    TRIGAMMA_EXACT,
-    TRIGAMMA_RECOMB25,
-    get_LN_lfcs,
-)
+from lntest import get_LN_lfcs  # noqa: E402
 from lntest import rank_genes_groups_ln  # noqa: E402
 
 # The recarrays are float32, so identities that hold exactly in float64 survive
@@ -249,32 +245,6 @@ class TestLfcStandardError:
 
 
 class TestOptions:
-    def test_trigamma_changes_the_standard_error_but_not_the_lfc(self):
-        """The flag exists because the correct form is unresolved.
-
-        Carrying both is only safe because the choice cannot move a log-fold
-        change -- it enters through the standard error alone. If that ever stops
-        being true, every published LFC becomes contingent on an open question.
-        """
-        exact = make_adata()
-        rank_genes_groups_ln(exact, "g", trigamma=TRIGAMMA_EXACT)
-        recomb = make_adata()
-        rank_genes_groups_ln(recomb, "g", trigamma=TRIGAMMA_RECOMB25)
-
-        np.testing.assert_array_equal(
-            np.asarray(exact.uns["rank_genes_groups"]["names"]["a"]),
-            np.asarray(recomb.uns["rank_genes_groups"]["names"]["a"]),
-        )
-        np.testing.assert_array_equal(
-            field(exact, "logfoldchanges", "a"), field(recomb, "logfoldchanges", "a")
-        )
-        assert not np.allclose(field(exact, "pvals", "a"), field(recomb, "pvals", "a"))
-        assert not np.allclose(field(exact, "lfc_se", "a"), field(recomb, "lfc_se", "a"))
-
-    def test_unknown_trigamma_is_rejected(self):
-        with pytest.raises(ValueError, match="trigamma"):
-            rank_genes_groups_ln(make_adata(), "g", trigamma="nonsense")
-
     def test_bonferroni_matches_the_closed_form(self):
         ad = make_adata()
         rank_genes_groups_ln(ad, "g", corr_method="bonferroni")

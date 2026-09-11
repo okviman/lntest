@@ -1,7 +1,5 @@
 import numpy as np
-# Migrated to the published package, 2026-09-10. trigamma=TRIGAMMA_RECOMB25
-# keeps the behaviour behind main_rSEQ's fig:sc_confidence_intervals.
-from lntest import TRIGAMMA_RECOMB25
+# Behind main_rSEQ's fig:sc_confidence_intervals.
 from lntest import get_LN_lfcs as get_DELN_lfcs
 # scanpy's LFC formula is a baseline, not part of lntest; see baselines.py.
 from baselines import get_scanpy_lfcs
@@ -83,8 +81,7 @@ plt.legend(fontsize=15)
 plt.tight_layout()
 plt.show()
 
-deln_lfcs, _, gamma = get_DELN_lfcs(Y_raw, X_raw, return_standard_error=True,
-                                    trigamma=TRIGAMMA_RECOMB25)
+deln_lfcs, _, gamma = get_DELN_lfcs(Y_raw, X_raw, return_standard_error=True)
 deln_confidence_intervals = deln_lfcs + 1.96 * np.array([-gamma, gamma])
 print(f"LN's Estimated LFC is below CI {np.sum(deln_lfcs < deln_confidence_intervals[0])} times")
 print(f"LN's Estimated LFC is above CI {np.sum(deln_lfcs > deln_confidence_intervals[1])} times")

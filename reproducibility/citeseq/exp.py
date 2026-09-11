@@ -6,18 +6,6 @@ import anndata as ann
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-# Was `from utils_frozen import *`, which pulled in one name this file uses:
-# get_DELN_lfcs. It now calls the published package instead.
-#
-# This is an estimator substitution, not an import rename, and it is the one
-# decision-retire-utils-py singled out. get_DELN_lfcs differs from get_LN_lfcs
-# by an eps = 1e-9 term, a missing all-zero-gene guard, and float64 rather than
-# float32 intermediates. Measured on this arm's own inputs: the filter below
-# guarantees n_plus >= 3, so eps**(1+n_plus) <= 1e-36 and 0 all-zero genes
-# survive -- the guard is unreachable. With trigamma=TRIGAMMA_RECOMB25 the
-# published behaviour is reproduced to 2.7e-15 in LFC and 1e-14 in p, which is
-# machine precision and closer than the float32 path this arm never used.
-from lntest import TRIGAMMA_RECOMB25
 from lntest import get_LN_lfcs as get_DELN_lfcs
 import statsmodels.stats.multitest as smm
 from baselines import get_test_results, scanpy_sig_test
@@ -47,7 +35,7 @@ memory_CD4 = ann.read_h5ad(require_input(
     DATA / "memory_CD4.h5ad",
     what="memory CD4 T cells from the 10x PBMC10k CITE-seq run, ADT-gated",
     source="rebuild with citeseq/R/pbmc10k_process.R then pbmc10k_to_h5ad.R, "
-           "or take it from the Zenodo deposit (decision-data-out-of-head)",
+           "or take it from the Zenodo deposit",
 ))
 os.makedirs(RESULTS / "figures", exist_ok=True)
 
@@ -119,8 +107,7 @@ for i in tqdm(range(replicates), desc="Running replicates"):
     
     # Method 1: DELN
     lfcs_deln, pvals_deln, se_deln = get_DELN_lfcs(
-        X_data_filtered, Y_data_filtered, return_standard_error=True,
-        trigamma=TRIGAMMA_RECOMB25)
+        X_data_filtered, Y_data_filtered, return_standard_error=True)
     adj_pvals_deln = smm.multipletests(pvals_deln, alpha=0.05, method='fdr_bh')[1]
 
     # Method 2: Wilcoxon

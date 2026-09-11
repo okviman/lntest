@@ -3,11 +3,7 @@
 
 import numpy as np
 import statsmodels.stats.multitest as smm
-# Reproducibility scripts request the PUBLISHED trigamma explicitly, so this
-# tree reproduces the paper by construction. lntest's own default is the exact
-# psi_1; which one is correct is question 1 in handoff-math-questions, open with
-# Oskar. When it is settled this is a one-word change here, not a migration.
-from lntest import TRIGAMMA_RECOMB25, get_LN_lfcs
+from lntest import get_LN_lfcs
 from baselines import get_test_results, scanpy_sig_test
 
 
@@ -43,7 +39,7 @@ Y = np.random.negative_binomial(n=r2, p=p2, size=(ny, n_genes))
 
 for method in methods:
     if method == "LN":
-        _, LN_p_vals = get_LN_lfcs(Y, X, test='t', trigamma=TRIGAMMA_RECOMB25)
+        _, LN_p_vals = get_LN_lfcs(Y, X, test='t')
         adj_pvals = smm.multipletests(LN_p_vals, alpha=0.05, method='bonferroni')[1]
     else:
         _, adj_pvals = scanpy_sig_test(X, Y, method=method)

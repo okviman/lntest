@@ -6,139 +6,15 @@ from scipy.stats.distributions import t
 # from typing import Optional, Sequence
 # import math
 
-from typing import Union, Iterable
 
+def trigamma_diff(a, n):
+    """``psi_1(a) - psi_1(n)`` with ``psi_1(z) = 1/z``, as the paper defines it.
 
-class _TrigammaDiffCache:
-    """
-    prefix[k] = sum_{j=1..k} 1/j^2   (prefix[0] = 0)
-    sum_{j=a..n-1} 1/j^2 = prefix[n-1] - prefix[a-1]
-    """
-    def __init__(self):
-        self._prefix = [0.0]
-
-    def ensure(self, max_k: int) -> None:
-        cur = len(self._prefix) - 1
-        if max_k <= cur:
-            return
-
-        s = self._prefix[-1]
-        for j in range(cur + 1, max_k + 1):
-            s += 1.0 / (j * j)
-            self._prefix.append(s)
-
-
-_cache = _TrigammaDiffCache()
-
-
-def _to_positive_int_scalar(x) -> int:
-    """
-    Round to nearest integer and clamp to >= 1
-    """
-    xi = int(np.round(x))
-    return max(1, xi)
-
-
-def _to_positive_int_array(x):
-    """
-    Vectorized rounding and clamp to >= 1
-    """
-    xi = np.round(x).astype(int)
-    xi[xi <= 0] = 1
-    return xi
-
-
-def trigamma_diff_int(
-    a: Union[int, float, Iterable, np.ndarray],
-    n: Union[int, float]
-) -> Union[float, np.ndarray]:
-    """
-    Compute:
-        psi_1(a) - psi_1(n) = sum_{j=a..n-1} 1/j^2
-
-    - a can be scalar or array-like
-    - values are rounded to nearest integer
-    - all values are clamped to >= 1
-    - cache is used only for array input
-    """
-
-    # ---- convert n ----
-    n = _to_positive_int_scalar(n)
-
-    # ---------- Scalar case ----------
-    if np.isscalar(a):
-        a = _to_positive_int_scalar(a)
-
-        if a >= n:
-            return 0.0
-
-        s = 0.0
-        for j in range(a, n):
-            s += 1.0 / (j * j)
-        return s
-
-    # ---------- Array case ----------
-    a_arr = _to_positive_int_array(np.asarray(a))
-
-    # ensure cache up to n-1
-    if n > 1:
-        _cache.ensure(n - 1)
-
-    result = np.zeros_like(a_arr, dtype=float)
-
-    mask = (a_arr < n)
-
-    if np.any(mask):
-        prefix_n = _cache._prefix[n - 1]
-        result[mask] = (
-            prefix_n
-            - np.array([_cache._prefix[x - 1] for x in a_arr[mask]])
-        )
-
-    return result
-
-# The two trigamma differences, and why both are here.
-#
-# TRIGAMMA_EXACT is psi_1(a) - psi_1(n), computed above. TRIGAMMA_RECOMB25 is
-# the integral approximation 1/a - 1/n, and it is the one the published RECOMB
-# results were produced with. They diverge where a is small -- 22% at a = 2,
-# 9.7% at a = 5, 1.1% at a = 50, 0.15% at a = 500 -- which is exactly the sparse
-# regime the method claims an advantage in.
-#
-# Which of the two is correct is an open question about the method, and this
-# module does not answer it. It makes the choice explicit and selectable, so
-# that code reproducing published numbers can ask for that behaviour by name
-# rather than carrying a divergent copy of the estimator.
-#
-# The default is EXACT. Nothing silently reproduces the older behaviour: a
-# caller has to ask for it, and the argument records at the call site that it
-# did.
-
-TRIGAMMA_EXACT = "exact"
-TRIGAMMA_RECOMB25 = "recomb25"
-
-
-def trigamma_diff_recomb25(a, n):
-    """The 1/x approximation to psi_1 used for the RECOMB submission.
-
-    ``utils.trigamma(x) = 1 / x``, so the standard error's first term was
-    ``1/a_hat - 1/n``. Preserved verbatim, including that it does no rounding
-    or clamping -- matching the published behaviour matters more here than
-    matching this module's conventions.
+    Not an approximation to "fix" to the true trigamma: that breaks the
+    unbiasedness identity ``theta_hat = a_hat / n`` by up to 37%. No clamping,
+    so ``a_hat = 0`` gives ``inf``.
     """
     return 1.0 / np.asarray(a, dtype=float) - 1.0 / float(n)
-
-
-def _trigamma_diff(a, n, method):
-    if method == TRIGAMMA_EXACT:
-        return trigamma_diff_int(a, n)
-    if method == TRIGAMMA_RECOMB25:
-        return trigamma_diff_recomb25(a, n)
-    raise ValueError(
-        f"unknown trigamma={method!r}; expected {TRIGAMMA_EXACT!r} "
-        f"(psi_1, the default) or {TRIGAMMA_RECOMB25!r} (1/x, the published "
-        f"RECOMB behaviour)"
-    )
 
 
 def digamma(x):
@@ -147,17 +23,14 @@ def digamma(x):
 # def trigamma(x):
 #         return 1 / x  + 0.5 / (x ** 2) +  1/(6.0*x**3)
 
-def log_beta_param_estimates(a, b, trigamma=TRIGAMMA_EXACT):
+def log_beta_param_estimates(a, b):
     """Mean and variance of log Beta(a, b).
 
-    ``trigamma`` selects psi_1 (the default) or the 1/x approximation. It
-    matters here as much as it does in the estimator: at a=5, b=500 the two give
-    0.219339 and 0.198020. Which is correct is an open question about the
-    method, not settled here; the argument exists so that either can be
-    requested explicitly, without editing this function.
+    The variance uses :func:`trigamma_diff`, giving 0.198020 at a=5, b=500 --
+    the value ``fig:beta_v_ln_vis`` was drawn with.
     """
     mu = digamma(a) - digamma(a + b)
-    sigma_2 = _trigamma_diff(a, a + b, trigamma)
+    sigma_2 = trigamma_diff(a, a + b)
     return mu, sigma_2
 
 
@@ -171,16 +44,15 @@ def intervals_ln(log_x, n, z=1.96):
     return antilog_interval, mu_bar, sigma_bar
 
 
-def intervals_beta(a, b, z=1.96, trigamma=TRIGAMMA_EXACT):
-    mu_log_beta, var_log_beta = log_beta_param_estimates(a, b, trigamma=trigamma)
+def intervals_beta(a, b, z=1.96):
+    mu_log_beta, var_log_beta = log_beta_param_estimates(a, b)
     se = np.sqrt(var_log_beta)
     log_intervals = mu_log_beta + var_log_beta / 2 + z * np.array([-se, se])
     antilog_interval = np.exp(log_intervals)
     return antilog_interval, mu_log_beta, var_log_beta
 
 
-def get_intervals(log_x, a, b, z=1.96, model='lognormal', eps=0.,
-                  trigamma=TRIGAMMA_EXACT):
+def get_intervals(log_x, a, b, z=1.96, model='lognormal', eps=0.):
     if model == 'naive':
         return interval_naive(log_x, b, z)
     n = log_x.size
@@ -191,7 +63,7 @@ def get_intervals(log_x, a, b, z=1.96, model='lognormal', eps=0.,
         # if there are only zero or one positive values, the mean estimate will be based on the log Beta mean
         mu_bar, sigma_bar = 0, 0
         squared_standard_error_ln = 0
-    _, mu_log_beta, var_log_beta = intervals_beta(a + eps ** n, b, z, trigamma=trigamma)
+    _, mu_log_beta, var_log_beta = intervals_beta(a + eps ** n, b, z)
 
     squared_standard_error_log_beta = var_log_beta
     se = np.sqrt(squared_standard_error_ln + squared_standard_error_log_beta)
@@ -239,7 +111,7 @@ def get_intervals_synthetic_data(true_mu, true_sigma_2, true_theta, experiments=
 
 def get_LN_lfcs(Y_, X_, normalize=True, test='t', normalization='CP10K',
                 return_standard_error=False, return_statistic=False,
-                return_log_abs_statistic=False, trigamma=TRIGAMMA_EXACT):
+                return_log_abs_statistic=False):
     """LN's t-test on two count matrices (cells x genes), dense or sparse.
 
     Delegates to :func:`get_LN_lfcs_sparse`, which accepts dense input and
@@ -257,7 +129,6 @@ def get_LN_lfcs(Y_, X_, normalize=True, test='t', normalization='CP10K',
         return_standard_error=return_standard_error,
         return_statistic=return_statistic,
         return_log_abs_statistic=return_log_abs_statistic,
-        trigamma=trigamma,
     )
 
 
@@ -399,7 +270,6 @@ def get_LN_lfcs_sparse(
     return_statistic=False,
     return_log_abs_statistic=False,
     eps=1e-12,
-    trigamma=TRIGAMMA_EXACT,
 ):
     """
     Sparse implementation of the LN log-fold-change estimator and test.
@@ -449,8 +319,8 @@ def get_LN_lfcs_sparse(
     log2_m_Y = np.log2(np.maximum(pos_mean_Y, eps))
     log2_m_X = np.log2(np.maximum(pos_mean_X, eps))
 
-    se_Y_1 = _trigamma_diff(a_hat_Y, int(n), trigamma)
-    se_X_1 = _trigamma_diff(a_hat_X, int(n_prime), trigamma)
+    se_Y_1 = trigamma_diff(a_hat_Y, int(n))
+    se_X_1 = trigamma_diff(a_hat_X, int(n_prime))
 
     mu_Y = log2_theta_hat_Y + log2_m_Y
     mu_X = log2_theta_hat_X + log2_m_X

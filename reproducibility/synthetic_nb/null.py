@@ -3,11 +3,7 @@ import pandas as pd
 import scanpy as sc
 import statsmodels.stats.multitest as smm
 from sklearn.metrics import confusion_matrix
-# Reproducibility scripts request the PUBLISHED trigamma explicitly, so this
-# tree reproduces the paper by construction. lntest's own default is the exact
-# psi_1; which one is correct is question 1 in handoff-math-questions, open with
-# Oskar. When it is settled this is a one-word change here, not a migration.
-from lntest import TRIGAMMA_RECOMB25, get_LN_lfcs
+from lntest import get_LN_lfcs
 import matplotlib.pyplot as plt
 from baselines import scanpy_sig_test, get_test_results
 
@@ -50,7 +46,7 @@ for i, d1 in enumerate(d1_list):
         else:
             sc_results = get_test_results(sc_adj_pvals, true_lfcs, verbose=False)
 
-        LN_lfcs, LN_p_vals = get_LN_lfcs(Y, X, test='t', trigamma=TRIGAMMA_RECOMB25)
+        LN_lfcs, LN_p_vals = get_LN_lfcs(Y, X, test='t')
         LN_adj_pvals = smm.multipletests(LN_p_vals, alpha=0.05, method='bonferroni')[1]
         if np.sum(LN_adj_pvals >= 0.05) == n_genes:
             # 100% accuracy and 0% TPR --- conf_mat crashes in this setting

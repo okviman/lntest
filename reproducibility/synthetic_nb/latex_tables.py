@@ -8,8 +8,7 @@ df = pd.read_csv(require_input(
     what="arm B's per-replicate metrics, batch-effect variant (non_de_mu=10)",
     source="run `python -m synthetic_nb.de_test` from reproducibility/ first. "
            "Note the only committed CSV is the NO-batch variant, at "
-           "reference/synthetic_nb/de_metrics_mu10_nobatch.csv -- which is "
-           "question 5 in handoff-math-questions, not an oversight here",
+           "reference/synthetic_nb/de_metrics_mu10_nobatch.csv",
 ))
 # df2 = pd.read_csv("./simul/test/NB_test_results/nde_mu100_be/results.csv")
 

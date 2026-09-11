@@ -2,10 +2,8 @@
 
 This is the predecessor of the clustering arm (``clustering/de.py`` and
 ``clustering/metrics.py``). It is kept, not deleted, because it may have produced
-figures that reached a manuscript -- decision-repo-restructure describes it as
-writing "same-named but different-md5 PNGs" than the current arm, which means
-different results, not duplicated code, and Pedro's 2026-09-10 criterion deletes
-only what certainly did not contribute.
+figures that reached a manuscript: it writes same-named but different-md5 PNGs
+than the current arm, which means different results, not duplicated code.
 
 It has been dead since the package move: line ~31 loads ``../../pkg/scanpy_wrapper.py``
 by file path, and ``pkg/`` became ``src/lntest/``. It also requires ``--config`` and

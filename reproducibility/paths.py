@@ -6,9 +6,8 @@ about what the working directory was -- `clustering/config.yaml` assumed one
 thing and `celltype/config.yaml` another, and four R scripts assumed a third --
 which is a large part of why only one arm reproduced.
 
-`require_input` exists because decision-repo-restructure asks that every entry
-point "checks its inputs exist and exits with the missing path named". Three
-arms read data that lives on a colleague's machine; the most this repository can
+`require_input` makes an entry point check its inputs exist and exit with the
+missing path named. Three arms read data that lives on a colleague's machine; the most this repository can
 do for them is fail immediately and say whose file is missing and where it comes
 from, instead of dying part-way through a run.
 """

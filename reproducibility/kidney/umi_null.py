@@ -15,11 +15,6 @@ from paths import data_dir, require_input
 
 # Run from reproducibility/ as `python -m kidney.umi_null`, which puts that
 # directory on sys.path -- no path manipulation needed.
-# Reproducibility scripts request the PUBLISHED trigamma explicitly, so this
-# tree reproduces the paper by construction. lntest's own default is the exact
-# psi_1; which one is correct is question 1 in handoff-math-questions, open with
-# Oskar. When it is settled this is a one-word change here, not a migration.
-from lntest import TRIGAMMA_RECOMB25
 from lntest import get_LN_lfcs as get_DELN_lfcs
 from baselines import get_test_results, scanpy_sig_test
 
@@ -46,7 +41,7 @@ def fpr_test_single(X, Y):
         else:
             method_key = "Scanpy " + method
         if method == "DELN":
-            lfcs, DELN_p_vals = get_DELN_lfcs(Y, X, test='t', trigamma=TRIGAMMA_RECOMB25)
+            lfcs, DELN_p_vals = get_DELN_lfcs(Y, X, test='t')
             adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='bonferroni')[1]
             if np.sum(adj_pvals >= 0.05) == n_genes:
                 results[method_key] = {"fpr": 0., "fpr_filtered": 0.}

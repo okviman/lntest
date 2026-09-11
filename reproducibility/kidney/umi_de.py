@@ -15,11 +15,6 @@ from paths import data_dir, require_input
 
 # Run from reproducibility/ as `python -m kidney.umi_de`, which puts that
 # directory on sys.path -- no path manipulation needed.
-# Reproducibility scripts request the PUBLISHED trigamma explicitly, so this
-# tree reproduces the paper by construction. lntest's own default is the exact
-# psi_1; which one is correct is question 1 in handoff-math-questions, open with
-# Oskar. When it is settled this is a one-word change here, not a migration.
-from lntest import TRIGAMMA_RECOMB25
 from lntest import get_LN_lfcs as get_DELN_lfcs
 from baselines import scanpy_sig_test
 
@@ -60,7 +55,7 @@ def de_test_single(X, Y, selected_genes, true_signs):
         else:
             method_key = "Scanpy " + method
         if method == "DELN":
-            lfcs, DELN_p_vals = get_DELN_lfcs(Y, X, test='t', trigamma=TRIGAMMA_RECOMB25)
+            lfcs, DELN_p_vals = get_DELN_lfcs(Y, X, test='t')
             adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='bonferroni')[1]
         else:
             lfcs, adj_pvals = scanpy_sig_test(X, Y, method=method)

@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.sparse as sp
 
-from ._ln_test import TRIGAMMA_EXACT, get_LN_lfcs, get_LN_lfcs_sparse
+from ._ln_test import get_LN_lfcs, get_LN_lfcs_sparse
 
 
 def _to_dense(a):
@@ -11,19 +11,6 @@ def _to_dense(a):
     # anndata can sometimes give numpy matrix; force ndarray
     return np.asarray(a)
 
-
-# Multiple-testing correction follows scanpy's, deliberately.
-#
-# scanpy declares statsmodels>=0.14.5 as a hard dependency and, in
-# ``_rank_genes_groups.py``, corrects exactly this way: Benjamini-Hochberg via
-# ``multipletests(..., method="fdr_bh")`` imported lazily inside the branch,
-# Bonferroni as the closed form inline. Reimplementing that would buy nothing --
-# every scanpy user already has statsmodels -- and would risk drifting from the
-# numbers scanpy's own ``rank_genes_groups`` produces, which is the one thing
-# this wrapper must not do.
-#
-# The vocabulary is scanpy's too: ``avail_corr = {"benjamini-hochberg",
-# "bonferroni"}``, not statsmodels' ``fdr_bh`` spelling.
 CORR_METHODS = ("benjamini-hochberg", "bonferroni")
 
 
@@ -55,7 +42,6 @@ def rank_genes_groups_ln(
     rankby_abs: bool = False,
     sparse: bool = True,
     corr_method: str = "bonferroni",
-    trigamma: str = TRIGAMMA_EXACT,
 ):
     """
     Takes normalized data and performs LN's t-test. Updates the adata object with the results.
@@ -68,12 +54,6 @@ def rank_genes_groups_ln(
         Benjamini-Hochberg; this function uses Bonferroni unless told otherwise,
         because that is what the published results were corrected with and
         changing the default would silently move them.
-    trigamma
-        Which trigamma difference the standard error uses -- ``"exact"``
-        (psi_1, the default) or ``"recomb25"`` (the 1/x approximation the
-        published RECOMB results used). See :mod:`lntest._ln_test`. Exposed so
-        that code reproducing those numbers can ask for that behaviour through
-        this function rather than bypassing it.
     """
 
     if groupby not in adata.obs:
@@ -126,11 +106,8 @@ def rank_genes_groups_ln(
     logfoldchanges = np.recarray((n_store,), dtype=dtype_float)
     pvals = np.recarray((n_store,), dtype=dtype_float)
     pvals_adj = np.recarray((n_store,), dtype=dtype_float)
-    # The standard error of the LFC. Stored so that a confidence interval is
-    # reachable through this function: lfc +/- 1.96 * lfc_se. That interval is
-    # the method's distinguishing claim -- scanpy's LFC estimates can fall
-    # outside their own confidence intervals where LN's are centred in theirs --
-    # so obtaining it should not require bypassing this wrapper.
+    # Stored so a confidence interval is reachable without bypassing this
+    # wrapper: lfc +/- 1.96 * lfc_se.
     lfc_se = np.recarray((n_store,), dtype=dtype_float)
 
     # Main loop
@@ -156,7 +133,6 @@ def rank_genes_groups_ln(
                 X_,
                 test=test,
                 return_statistic=True,
-                trigamma=trigamma,
             )
         else:
             # This is slow: 0.1 seconds
@@ -167,7 +143,6 @@ def rank_genes_groups_ln(
                 X_,
                 test=test,
                 return_statistic=True,
-                trigamma=trigamma,
             )
         lfc_vec = np.asarray(lfc_vec, dtype=float)
         p_vec = np.asarray(p_vec, dtype=float)

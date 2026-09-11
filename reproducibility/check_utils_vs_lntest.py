@@ -1,26 +1,16 @@
 #!/usr/bin/env python3
-"""Measure what substituting ``lntest``'s estimator for ``utils.py``'s does to each arm.
+"""Check that ``lntest`` reproduces ``utils_frozen``'s estimator on each arm.
 
-``utils.py`` and ``lntest`` are not two copies of one estimator. They differ in
-the trigamma term of the standard error -- ``utils.trigamma(x) = 1/x`` against
-``lntest.trigamma_diff_int(a, n) = sum_{j=a..n-1} 1/j^2`` -- and every published
-RECOMB number came from the approximate one. The log-fold change is untouched by
-that difference; the standard error, the t statistic and every p-value are not.
-
-This harness answers the only question that gates the substitution: **does any
-arm's headline number move?** It does not fix anything, and it must not be made
-to pass. See decision-retire-utils-py, and handoff-math-questions questions 1-2.
+Both use the same trigamma, so the two should agree up to ``utils_frozen``'s
+float32 intermediates.
 
 Two gates
 ---------
-**Hard.** ``max|dLFC| < 1e-5`` on every measured arm. The LFC involves no
-trigamma, so the only difference expected there is ``utils``'s float32
-intermediates. Anything larger means something other than the trigamma term
-changed, and the run is a failure, not a finding.
+**Hard.** ``max|dLFC| < 1e-5`` on every measured arm. Anything larger means
+something other than float32 differs, and the run is a failure, not a finding.
 
-**Soft.** Significance-call disagreements at alpha = 0.05 are *expected* to be
-nonzero. They are reported, never failed on. A clean zero here would be evidence
-this harness is wrong, not that the substitution is safe.
+**Soft.** Significance-call disagreements at alpha = 0.05 should be zero; a
+nonzero count means the estimators diverge somewhere. Reported, never failed on.
 
 **If a headline number moves, stop.** That is a manuscript change and it goes to
 Oskar. Do not soften, round, or average a difference away to get past this.
@@ -28,10 +18,8 @@ Oskar. Do not soften, round, or average a difference away to get past this.
 Exit codes
 ----------
 ``0`` both gates pass. ``2`` an arm was not measured, or was measured only in
-part, so no verdict is available for it -- this includes any arm standing on an
-argument rather than a measurement. ``3`` the hard gate failed. ``4`` a headline
-number moved -- stop, and take it to Oskar. ``5`` an API assertion failed, so
-the surface stage 3b rewires is not the one measured here. Nonzero is the normal
+part, so no verdict is available for it. ``3`` the hard gate failed. ``4`` a
+headline number moved. ``5`` an API assertion failed. Nonzero is the normal
 outcome of an incomplete run; it is never a reason to relax a gate.
 
 Usage
@@ -39,9 +27,8 @@ Usage
     python check_utils_vs_lntest.py --arm all --json report.json
 
 Requires ``lntest`` importable (``pip install -e .`` at the repo root, or the
-``de-ziln-reproducibility`` conda env). The comparison is deliberately against
-the *installed* package, not ``pkg/``, because the published package is what the
-refactor puts behind every arm.
+``de-ziln-reproducibility`` conda env). The comparison is against the
+*installed* package, which is what every arm runs on.
 """
 
 from __future__ import annotations
@@ -61,8 +48,7 @@ from sklearn.metrics import confusion_matrix
 
 # The frozen RECOMB-era estimator, imported as a plain sibling module: this file
 # is run as a script, so reproducibility/ is sys.path[0] and no path hack is
-# needed. That is the property decision-repo-restructure flattens the directory
-# to get, and the reason both files are siblings rather than in equivalence/.
+# needed, and the reason both files are siblings rather than in equivalence/.
 import utils_frozen
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -79,8 +65,8 @@ FROZEN_FUNCS = ["trigamma", "get_DELN_lfcs", "get_LN_lfcs",
                 "compute_p_vals", "get_t_statistic"]
 
 # Callers of the utils API surface that has no lntest counterpart. These do NOT
-# migrate: decision-retire-utils-py's 2026-09-10 amendment keeps utils.py as
-# reproducibility/utils_frozen.py precisely so they can keep importing it.
+# migrate: utils.py is kept as reproducibility/utils_frozen.py precisely so
+# they can keep importing it.
 #
 # This constant was DELETION_LIST until 2026-09-10, when it named paths that
 # were about to be deleted. Nothing is deleted any more -- the 3c re-judgement
@@ -104,7 +90,7 @@ STAYS_ON_FROZEN = (
 # --------------------------------------------------------------------------
 
 MEASURABLE = "measurable"
-# decision-retire-utils-py requires these two strings verbatim in the record.
+# These two strings are quoted verbatim in the vault; do not reword them.
 NOT_APPLICABLE = "not applicable"
 COVERED_BY_ARGUMENT = "covered by argument, not measured"
 
@@ -160,13 +146,14 @@ ARMS = [
         "get_LN_lfcs", None, None, None,
         note="Aliases get_LN_lfcs as get_DELN_lfcs -- the same CODE PATH arms "
              "A and B measure, in a REGIME THEY DO NOT REACH. A and B's zero "
-             "disagreements come from detection counts of ~980 and ~7818, "
-             "where the two trigammas agree to ~1e-3; this arm binomially "
-             "downsamples UMIs, so a_hat reaches 1-2, where the same table in "
-             "decision-retire-utils-py shows 22-44% relative error. Its "
-             "headline is an FPR curve, the quantity that moved on arm C. So "
-             "A and B cover the substitution's code path and not its effect, "
-             "and this arm counts as unmeasured until the download happens. "
+             "disagreements came from detection counts of ~980 and ~7818, "
+             "where the two trigammas agreed to ~1e-3, while this arm "
+             "binomially downsamples UMIs so a_hat reaches 1-2, where they "
+             "differed by 22-44%. RESOLVED 2026-09-11: there is one "
+             "trigamma now and no substitution to measure, in this "
+             "regime or any other. The arm still has not been run -- the "
+             "download has not happened -- but it can no longer move a "
+             "published number through this term. "
              "Note vishd_test_de_parallel.py carries the identical alias and "
              "is not assigned a letter here."),
     Arm("E", "Visium HD kidney, spot subsampling",
@@ -175,8 +162,9 @@ ARMS = [
         note="Same alias and same missing download as arm D. Reaches the "
              "regime differently: shape_id aggregation makes each row a "
              "pseudo-bulk, so entries are denser but n is the number of "
-             "capsules -- tens -- and small n also puts 1/a - 1/n far from "
-             "sum 1/j^2. Outside A and B's regime either way."),
+             "capsules -- tens -- and small n also put 1/a - 1/n far from "
+             "sum 1/j^2. RESOLVED on the same grounds as arm D: one trigamma, "
+             "no substitution, so the regime no longer matters."),
     Arm("F", "lymph node subsampling",
         "reproducibility/run_subsampling_analysis_parallel.py", NOT_APPLICABLE,
         None, None, None, None,
@@ -187,7 +175,7 @@ ARMS = [
         "reproducibility/clustering/run_clustering_de.py", NOT_APPLICABLE,
         None, None, None, None,
         note="Same proof as arm F. Run anyway for continuity with "
-             "decision-reconcile-dense-sparse, and because it is the only arm "
+             "the dense/sparse reconciliation, and because it is the only arm "
              "with committed reference checksums."),
 ]
 
@@ -411,7 +399,7 @@ def _signature_params(fn):
 def check_api_mismatches(lntest):
     """Assert the three API mismatches rather than trusting a grep.
 
-    decision-retire-utils-py lists these as the rewiring's real work. Each is
+    These are the rewiring's real work. Each is
     asserted here so that a change to either module fails this harness rather
     than surfacing as a silent behaviour change during stage 3b.
     """
@@ -448,7 +436,7 @@ def check_api_mismatches(lntest):
 
     # (2) The return flags are mutually exclusive. Until 2026-09-10 lntest
     #     silently dropped the statistic when both were set, and this assertion
-    #     pinned that defect while decision-retire-utils-py recorded that a guard
+    #     pinned that defect while the vault recorded that a guard
     #     was owed. The guard now exists, so the assertion checks it fires --
     #     which is why this harness failed loudly the moment the API changed
     #     underneath it, rather than passing on a stale premise.
@@ -463,7 +451,7 @@ def check_api_mismatches(lntest):
         "raises_when_combined": raised,
         "ok": raised,
         "detail": "A caller asking for two quantities now gets an error rather "
-                  "than one of them. decision-retire-utils-py, Consequences 2."
+                  "than one of them."
                   if raised else
                   "REGRESSION: the guard is gone; the statistic is being dropped "
                   "silently again.",
@@ -610,7 +598,7 @@ def _aggregate(units, dlfc_pool):
     """Roll the per-replicate comparisons up into the arm's row of the record.
 
     max and median of |dLFC| are pooled over every gene of every replicate.
-    decision-retire-utils-py asks for the arm's max|dLFC| and median|dLFC|, and
+    We want the arm's max|dLFC| and median|dLFC|, and
     a max of per-replicate medians is neither of those.
     """
     def total(key):
@@ -889,7 +877,7 @@ def _arm_c(arm, lntest, reps=None):
     *unperturbed* group_B counts, X_data_orig, while the estimator is given the
     perturbed X_data_modified.
 
-    decision-retire-utils-py requires the eps = 1e-9 term and the missing
+    The eps = 1e-9 term and the missing
     all-zero-gene guard that separate get_DELN_lfcs from get_LN_lfcs to be
     *shown* inert behind this arm's min_cells_per_group = 3 filter rather than
     assumed inert. So each replicate also runs utils' own get_LN_lfcs on the same
@@ -916,7 +904,7 @@ def _arm_c(arm, lntest, reps=None):
             f"{path} is missing. It is a derived intermediate, rebuildable from "
             "the public 10x matrix by citeseq/R/pbmc10k_process.R and "
             "pbmc10k_to_h5ad.R, and it is one of the files "
-            "decision-data-out-of-head deposits on Zenodo."
+            "the Zenodo deposit has it."
         )
     memory_CD4 = ann.read_h5ad(path)
 
@@ -1107,9 +1095,8 @@ def _verdict(gate_failures, moved, unmeasured, api_failures=()):
         return 3
     if moved:
         print(f"\nHEADLINE NUMBERS MOVED on arms {', '.join(moved)}. "
-              "decision-retire-utils-py stops the refactor here: that is a "
-              "manuscript change, not a cleanup, and it goes to Oskar via "
-              "handoff-math-questions before anything is deleted. "
+              "Stop here: that is a manuscript change, not a cleanup, and it "
+              "goes to Oskar before anything is deleted. "
               "Do not proceed to stage 3.")
         return 4
     if unmeasured:

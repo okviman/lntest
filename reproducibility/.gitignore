@@ -9,6 +9,15 @@ data/
 !nullsplit/data/
 !citeseq/data/
 
+# Per-run artifacts that land inside tracked results/ directories rather than
+# output/. citeseq/exp.py writes 100 diagnostic PNGs and 400 per-replicate dumps
+# (590 MB) on every run, and synthetic_nb/de_test.py writes its CSV beside the
+# committed one. Measured 2026-09-10; without these, one documented command puts
+# 600 MB in front of `git add`.
+citeseq/results/figures/
+citeseq/results/replicates/
+synthetic_nb/results/nde_mu10_be/
+
 # Local caches used to keep Numba/Matplotlib writable under sandboxing
 .numba_cache/
 .mpl_cache/

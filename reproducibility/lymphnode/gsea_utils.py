@@ -7,12 +7,6 @@ import pandas as pd
 
 # Run from reproducibility/ as `python -m lymphnode.gsea_utils`, which puts that
 # directory on sys.path -- no path manipulation needed.
-# Migrated to the published package, 2026-09-10. lntest returns
-# (lfc, p_vals, statistic, log_abs) where utils returned
-# (lfc, statistic, log_abs, p_vals) -- the arity-and-order mismatch
-# decision-retire-utils-py predicted, so the unpacking is translated, not just
-# repointed. trigamma=TRIGAMMA_RECOMB25 keeps the published behaviour.
-from lntest import TRIGAMMA_RECOMB25
 from lntest import get_LN_lfcs as get_DELN_lfcs
 
 
@@ -168,8 +162,7 @@ def de_test_with_scores(X, Y, gene_names=None):
         if method == "DELN":
             # Get test statistics for DELN (returns lfc, statistic, log_abs_statistic, p_vals)
             lfcs, p_vals, test_statistics, log_abs_statistic = get_DELN_lfcs(
-                Y, X, test='t', return_log_abs_statistic=True,
-                trigamma=TRIGAMMA_RECOMB25
+                Y, X, test='t', return_log_abs_statistic=True
             )
             # Apply Bonferroni correction
             adj_pvals = smm.multipletests(p_vals, alpha=0.05, method='bonferroni')[1]

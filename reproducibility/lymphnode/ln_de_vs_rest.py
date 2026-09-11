@@ -45,12 +45,6 @@ from tqdm import tqdm
 
 # Run from reproducibility/ as `python -m lymphnode.ln_de_vs_rest`, which puts that
 # directory on sys.path -- no path manipulation needed.
-# Migrated to the published package, 2026-09-10. lntest returns
-# (lfc, p_vals, statistic, log_abs) where utils returned
-# (lfc, statistic, log_abs, p_vals) -- the arity-and-order mismatch
-# decision-retire-utils-py predicted, so the unpacking is translated, not just
-# repointed. trigamma=TRIGAMMA_RECOMB25 keeps the published behaviour.
-from lntest import TRIGAMMA_RECOMB25
 from lntest import get_LN_lfcs as get_DELN_lfcs
 
 
@@ -315,7 +309,6 @@ def run_de_celltype_vs_rest(adata, layer='counts', celltype_col='leiden',
                     normalization=normalization,
                     test=test,
                     return_log_abs_statistic=True,
-                    trigamma=TRIGAMMA_RECOMB25
                 )
                 
                 # Multiple testing correction

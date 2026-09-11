@@ -17,7 +17,7 @@ import pytest
 import scipy.sparse as sp
 from scipy import stats
 
-from lntest import get_LN_lfcs, get_LN_lfcs_sparse
+from lntest import get_LN_lfcs, get_LN_lfcs_sparse, trigamma_diff
 
 ALPHA = 0.05
 
@@ -148,6 +148,40 @@ class TestArrayTypes:
         ):
             assert np.all(np.isfinite(lfc))
             assert np.all(np.isfinite(pvals))
+
+
+class TestTrigamma:
+    """The standard error's first term, pinned to ``1/a - 1/n``.
+
+    Swapping in the true trigamma moves every p-value in the sparse regime
+    while moving no log-fold change, so it hides. These tests catch it.
+    """
+
+    @pytest.mark.parametrize("a, n", [(1, 5), (2, 2638), (50, 500), (500, 2638)])
+    def test_is_the_integral_approximation(self, a, n):
+        assert trigamma_diff(a, n) == 1.0 / a - 1.0 / n
+
+    def test_is_not_the_exact_psi_1_difference(self):
+        """The gap is the whole reason this was an open question."""
+        a, n = 2, 2638
+        exact = sum(1.0 / (j * j) for j in range(a, n))
+        assert trigamma_diff(a, n) == pytest.approx(0.499621, abs=1e-6)
+        assert exact == pytest.approx(0.644555, abs=1e-6)
+
+    def test_array_and_scalar_agree(self):
+        a = np.array([1, 2, 50, 500])
+        np.testing.assert_array_equal(
+            trigamma_diff(a, 2638), [trigamma_diff(x, 2638) for x in a]
+        )
+
+    def test_undetected_gene_is_not_clamped(self):
+        """``a_hat = 0`` gives inf rather than being rounded up to 1.
+
+        The published behaviour: callers filter those genes out. The exact form
+        this replaced did clamp, so the absence of clamping is load-bearing.
+        """
+        with np.errstate(divide="ignore"):
+            assert np.isinf(trigamma_diff(0, 100))
 
 
 class TestCalibration:

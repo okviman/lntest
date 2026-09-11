@@ -3,11 +3,7 @@ import numpy as np
 from paths import results_dir
 import pandas as pd
 import statsmodels.stats.multitest as smm
-# Reproducibility scripts request the PUBLISHED trigamma explicitly, so this
-# tree reproduces the paper by construction. lntest's own default is the exact
-# psi_1; which one is correct is question 1 in handoff-math-questions, open with
-# Oskar. When it is settled this is a one-word change here, not a migration.
-from lntest import TRIGAMMA_RECOMB25, get_LN_lfcs
+from lntest import get_LN_lfcs
 from baselines import get_test_results, scanpy_sig_test
 
 
@@ -52,7 +48,7 @@ for d1 in [1., 1.5, 2.]:
 
         for method in methods:
             if method == "LN":
-                _, LN_p_vals = get_LN_lfcs(Y, X, test='t', trigamma=TRIGAMMA_RECOMB25)
+                _, LN_p_vals = get_LN_lfcs(Y, X, test='t')
                 adj_pvals = smm.multipletests(LN_p_vals, alpha=0.05, method='bonferroni')[1]
             else:
                 _, adj_pvals = scanpy_sig_test(X, Y, method=method)
@@ -64,11 +60,8 @@ for d1 in [1., 1.5, 2.]:
             results["dispersion"] = d1
             df = pd.concat([df, pd.DataFrame([results])], ignore_index=True)
 
-# Was an absolute path on Oskar's machine, which is why no one else could run
-# this. The "_be" in the old directory name recorded that this is the
-# batch-effect variant (log_batch_factor = 1 above); it is kept in the filename
-# so latex_tables.py can tell the two runs apart -- see question 5 in
-# handoff-math-questions, which is about exactly that ambiguity.
+# "_be" marks the batch-effect variant (log_batch_factor = 1 above), so
+# latex_tables.py can tell the two runs apart.
 out = results_dir(__file__) / f"nde_mu{int(non_de_mu)}_be"
 out.mkdir(parents=True, exist_ok=True)
 df.to_csv(out / f"d1_vs_d2_01_nde_mu_{int(non_de_mu)}.csv", index=False)

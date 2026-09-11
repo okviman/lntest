@@ -13,12 +13,9 @@ branch that needs it, which is again what scanpy does.
 from __future__ import annotations
 
 from ._ln_test import (
-    TRIGAMMA_EXACT,
-    TRIGAMMA_RECOMB25,
     get_LN_lfcs,
     get_LN_lfcs_sparse,
-    trigamma_diff_int,
-    trigamma_diff_recomb25,
+    trigamma_diff,
 )
 from ._rank_genes_groups import CORR_METHODS, rank_genes_groups_ln
 
@@ -40,13 +37,10 @@ del _detect_version
 
 __all__ = [
     "CORR_METHODS",
-    "TRIGAMMA_EXACT",
-    "TRIGAMMA_RECOMB25",
     "get_LN_lfcs",
     "get_LN_lfcs_sparse",
     "rank_genes_groups_ln",
-    "trigamma_diff_int",
-    "trigamma_diff_recomb25",
+    "trigamma_diff",
     "__version__",
 ]
 
