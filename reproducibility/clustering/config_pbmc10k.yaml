@@ -1,0 +1,49 @@
+# Configuration for the arm's second dataset, PBMC10k's RNA (clustering/pbmc10k_prep.py writes the input); every
+# other setting is PBMC3k's, so the two runs differ only in their data.
+
+# Path to the input data: either an .h5ad file or raw 10x data
+# (a directory or a .tar.gz of filtered_gene_bc_matrices). When raw 10x data is
+# given, standard PBMC3k QC is applied automatically.
+adata_path: "data/pbmc10k_rna.h5ad"
+
+# Leiden resolutions to test
+# Format: list of [resolution_value, key_name] pairs
+# Each resolution will create a clustering with the specified key name
+leiden_resolutions:
+  - [0.01, "leiden_verylow"]
+  - [0.1, "leiden_low"]
+  - [1.0, "leiden_mid"]
+  - [2.0, "leiden_high"]
+  - [3.0, "leiden_veryhigh"]
+
+# Number of top genes to use for signature analysis
+top_genes: 20
+
+# Cell type markers
+# Dictionary mapping cell type names to lists of marker genes
+# Reference: https://link.springer.com/article/10.1186/s13059-024-03183-0#MOESM1
+markers:
+  "Naive CD4 T":
+    - "IL7R"
+    - "CCR7"
+  "CD14 Mono":
+    - "CD14"
+    - "LYZ"
+  "Memory CD4 T":
+    - "IL7R"
+    - "S100A4"
+  "B":
+    - "MS4A1"
+  "CD8 T":
+    - "CD8A"
+  "FCGR3A Mono":
+    - "FCGR3A"
+    - "MS4A7"
+  "NK":
+    - "GNLY"
+    - "NKG7"
+  "DC":
+    - "FCER1A"
+    - "CST3"
+  "Platelet":
+    - "PPBP"

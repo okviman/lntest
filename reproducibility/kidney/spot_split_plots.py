@@ -5,7 +5,7 @@ import pandas as pd
 
 from paths import fig_name, require_input, results_dir
 import plot_style
-from method_colors import method_color, method_draw_order, method_label, method_order
+from method_colors import method_color, method_draw_order, method_label
 import json
 import matplotlib.pyplot as plt
 import argparse
@@ -13,13 +13,15 @@ from matplotlib.lines import Line2D
 from kidney.fpr_plots import SAMPLING, SPLIT, p_axis
 plot_style.use()
 
+GRID_COLS = 5  # the PR-curve grid's columns
+
 def method_and_p_legends(fig, methods, selected_p, linestyle_map, p_symbol=SPLIT):
     """Two keys right of the axes: colour is the method, line style the split probability."""
     plot_style.legend_outside(fig, [Line2D([0], [0], color=method_color(m), lw=1.3) for m in methods],
                               [method_label(m) for m in methods], title='Method')
     plot_style.legend_outside(fig, [Line2D([0], [0], color='black', lw=1.3, linestyle=linestyle_map[p])
                                     for p in selected_p],
-                              [f'{p:.3f}' for p in selected_p], title=p_symbol, y=0.6)
+                              [f'{p:.2g}' for p in selected_p], title=p_symbol, y=0.6)
 
 
 def plot_tpr_fpr_results(csv_file, output_file, p_symbol=SPLIT, odds=False):
@@ -29,15 +31,20 @@ def plot_tpr_fpr_results(csv_file, output_file, p_symbol=SPLIT, odds=False):
         what="this arm's spot-splitting results",
         source="run `python -m kidney.spot_split` first",
     ))
-    
-    # Get unique methods and p values
-    methods = method_draw_order(df['method'])
-    p_values = sorted(df['p'].unique())
-    
-    method_to_color = {method: method_color(method) for method in methods}
-    
     fig, axes = plt.subplots(1, 2, figsize=plot_style.figsize(2))
-    
+    draw_tpr_fpr(axes, df, p_symbol, odds)
+    plt.tight_layout()
+    plot_style.legend_outside(fig)
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Plot saved to {output_file}")
+    plt.close()
+
+
+def draw_tpr_fpr(axes, df, p_symbol=SPLIT, odds=False):
+    """plot_tpr_fpr_results' two panels, drawn into two axes."""
+    methods = method_draw_order(df['method'])
+    method_to_color = {method: method_color(method) for method in methods}
+
     # Plot TPR
     for method in methods:
         method_df = df[df['method'] == method]
@@ -65,12 +72,6 @@ def plot_tpr_fpr_results(csv_file, output_file, p_symbol=SPLIT, odds=False):
 
     axes[1].set_xlabel(p_axis([], p_symbol, odds)[1])
     axes[1].set_ylabel('FPR')
-    
-    plt.tight_layout()
-    plot_style.legend_outside(fig)
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    print(f"Plot saved to {output_file}")
-    plt.close()
 
 
 def plot_ap_pr_auc_results(csv_file, output_file, p_symbol=SPLIT, odds=False):
@@ -80,15 +81,20 @@ def plot_ap_pr_auc_results(csv_file, output_file, p_symbol=SPLIT, odds=False):
         what="this arm's spot-splitting results",
         source="run `python -m kidney.spot_split` first",
     ))
-    
-    # Get unique methods and p values
-    methods = method_draw_order(df['method'])
-    p_values = sorted(df['p'].unique())
-    
-    method_to_color = {method: method_color(method) for method in methods}
-    
     fig, axes = plt.subplots(1, 2, figsize=plot_style.figsize(2))
-    
+    draw_ap_pr_auc(axes, df, p_symbol, odds)
+    plt.tight_layout()
+    plot_style.legend_outside(fig)
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Plot saved to {output_file}")
+    plt.close()
+
+
+def draw_ap_pr_auc(axes, df, p_symbol=SPLIT, odds=False):
+    """plot_ap_pr_auc_results' two panels, drawn into two axes."""
+    methods = method_draw_order(df['method'])
+    method_to_color = {method: method_color(method) for method in methods}
+
     # Plot AP
     for method in methods:
         method_df = df[df['method'] == method]
@@ -120,12 +126,6 @@ def plot_ap_pr_auc_results(csv_file, output_file, p_symbol=SPLIT, odds=False):
     axes[1].set_xlabel(p_axis([], p_symbol, odds)[1])
     axes[1].set_ylabel('PR-AUC (Trapezoidal)')
     axes[1].set_ylim([0, 1])
-    
-    plt.tight_layout()
-    plot_style.legend_outside(fig)
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    print(f"Plot saved to {output_file}")
-    plt.close()
 
 
 def plot_pr_curves_all_p(json_file, output_file, q, lfc, p_symbol=SPLIT):
@@ -140,11 +140,9 @@ def plot_pr_curves_all_p(json_file, output_file, q, lfc, p_symbol=SPLIT):
     first_p_key = list(curves.keys())[0]
     methods = method_draw_order(curves[first_p_key])
     
-    method_to_color = {method: method_color(method) for method in methods}
-    
     # Create subplots: one for each p value
     n_p = len(p_values)
-    n_cols = min(3, n_p)
+    n_cols = min(GRID_COLS, n_p)
     n_rows = (n_p + n_cols - 1) // n_cols
     
     fig, axes = plt.subplots(n_rows, n_cols, figsize=plot_style.figsize(n_cols, n_rows))
@@ -154,41 +152,8 @@ def plot_pr_curves_all_p(json_file, output_file, q, lfc, p_symbol=SPLIT):
         axes = axes.flatten() if n_rows > 1 else axes
     
     for p_idx, p in enumerate(p_values):
-        ax = axes[p_idx]
-        p_key = f"p_{p:.6f}"
-        
-        if p_key in curves:
-            for method in methods:
-                if method in curves[p_key]:
-                    method_data = curves[p_key][method]
-                    recall = np.array(method_data['recall'])
-                    precision_mean = np.array(method_data['precision_mean'])
-                    precision_std = method_data.get('precision_std')
-                    pr_auc_curve_mean = method_data.get('pr_auc_curve_mean', np.nan)
-                    
-                    # Plot mean curve; its AUC is written in the panel, so one legend serves every panel
-                    ax.plot(recall, precision_mean,
-                           label=method_label(method),
-                           color=method_to_color[method], linewidth=1.3)
-                    if not np.isnan(pr_auc_curve_mean):
-                        k = method_order(methods).index(method)
-                        ax.text(0.03, 0.03 + 0.09 * (len(methods) - 1 - k), f'AUC {pr_auc_curve_mean:.3f}',
-                                transform=ax.transAxes, color=method_to_color[method],
-                                fontsize=plot_style.SMALL)
-                    
-                    # Plot std as shaded region (lighter shade)
-                    if precision_std is not None:
-                        precision_std_arr = np.array(precision_std)
-                        ax.fill_between(recall,
-                                      precision_mean - precision_std_arr,
-                                      precision_mean + precision_std_arr,
-                                      alpha=0.1, color=method_to_color[method])
-        
-        ax.set_xlabel('Recall')
-        ax.set_ylabel('Precision')
-        ax.set_title(f'{p_symbol} = {p:.3f}')
-        ax.set_xlim([0, 1])
-        ax.set_ylim([0, 1])
+        draw_pr_curve(axes[p_idx], curves, p, methods, p_symbol)
+    label_grid_outer(list(axes[:n_p]), n_cols)
     
     # Hide unused subplots
     for idx in range(n_p, len(axes)):
@@ -201,61 +166,88 @@ def plot_pr_curves_all_p(json_file, output_file, q, lfc, p_symbol=SPLIT):
     plt.close()
 
 
-def plot_pr_curves_selected_p(json_file, output_file, q, lfc, p_symbol=SPLIT):
-    """Plot Precision vs Recall curves for selected p values (smallest, median, largest) in one plot."""
-    with open(json_file, 'r') as f:
-        curve_data = json.load(f)
-    
-    p_values = np.array(curve_data['p_values'])
-    curves = curve_data['curves']
-    
-    # Get methods from first p value
-    first_p_key = list(curves.keys())[0]
-    methods = method_draw_order(curves[first_p_key])
-    
+def label_grid_outer(axes, n_cols):
+    """Keep axis labels and tick labels on the grid's left column and bottom row only; every panel spans [0, 1]."""
+    for i, ax in enumerate(axes):
+        if i % n_cols:
+            ax.set_ylabel('')
+            ax.tick_params(labelleft=False)
+        if i + n_cols < len(axes):  # another panel below
+            ax.set_xlabel('')
+            ax.tick_params(labelbottom=False)
+
+
+def draw_pr_curve(ax, curves, p, methods, p_symbol=SPLIT):
+    """One panel of plot_pr_curves_all_p: every method's mean PR curve at p, one SD shaded."""
     method_to_color = {method: method_color(method) for method in methods}
+    p_key = f"p_{p:.6f}"
     
-    # Select p values: smallest, largest, and closest to median
-    p_sorted = sorted(p_values)
-    p_min = p_sorted[0]
-    p_max = p_sorted[-1]
-    p_median_val = np.median(p_sorted)
-    # Find p value closest to median
-    p_median_idx = np.argmin(np.abs(p_sorted - p_median_val))
-    p_median = p_sorted[p_median_idx]
-    
-    selected_p = [p_min, p_median, p_max]
-    
-    fig, ax = plt.subplots(1, 1, figsize=plot_style.figsize())
-    
-    # Define line styles: dot for smallest, dash for median, solid for largest
-    linestyle_map = {p_min: ':', p_median: '--', p_max: '-'}
-    
-    for method in methods:
-        for p in selected_p:
-            p_key = f"p_{p:.6f}"
-            
-            if p_key in curves and method in curves[p_key]:
+    if p_key in curves:
+        for method in methods:
+            if method in curves[p_key]:
                 method_data = curves[p_key][method]
                 recall = np.array(method_data['recall'])
                 precision_mean = np.array(method_data['precision_mean'])
                 precision_std = method_data.get('precision_std')
                 
-                # Plot mean curve (no variance shades for selected p plot)
-                # Use dot (:) for smallest, dash (--) for median, solid (-) for largest
+                # Plot mean curve; one legend serves every panel
                 ax.plot(recall, precision_mean,
-                       color=method_to_color[method], linewidth=1.3, linestyle=linestyle_map[p])
+                       label=method_label(method),
+                       color=method_to_color[method], linewidth=1.3)
+                
+                # Plot std as shaded region (lighter shade)
+                if precision_std is not None:
+                    precision_std_arr = np.array(precision_std)
+                    ax.fill_between(recall,
+                                  precision_mean - precision_std_arr,
+                                  precision_mean + precision_std_arr,
+                                  alpha=0.1, color=method_to_color[method])
     
     ax.set_xlabel('Recall')
     ax.set_ylabel('Precision')
+    ax.set_title(f'{p_symbol} = {p:.2g}')
     ax.set_xlim([0, 1])
     ax.set_ylim([0, 1])
+
+
+def plot_pr_curves_selected_p(json_file, output_file, q, lfc, p_symbol=SPLIT):
+    """Plot Precision vs Recall curves for selected p values (smallest, median, largest) in one plot."""
+    with open(json_file, 'r') as f:
+        curve_data = json.load(f)
     
+    curves = curve_data['curves']
+    methods = method_draw_order(curves[next(iter(curves))])
+    fig, ax = plt.subplots(1, 1, figsize=plot_style.figsize())
+    selected_p, linestyle_map = draw_pr_curves(ax, curves, methods, np.array(curve_data['p_values']))
     plt.tight_layout()
     method_and_p_legends(fig, methods, selected_p, linestyle_map, p_symbol)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
+
+
+def draw_pr_curves(ax, curves, methods, p_values_json):
+    """Mean PR curves at the smallest, the median and the largest p: dotted, dashed and solid.
+
+    Returns the three p and their line styles, for the key.
+    """
+    p_sorted = np.sort(p_values_json)
+    p_min, p_max = p_sorted[0], p_sorted[-1]
+    p_median = p_sorted[np.argmin(np.abs(p_sorted - np.median(p_sorted)))]
+    selected_p = [p_min, p_median, p_max]
+    linestyle_map = {p_min: ':', p_median: '--', p_max: '-'}
+    for method in methods:
+        for p in selected_p:
+            p_key = f"p_{p:.6f}"
+            if p_key in curves and method in curves[p_key]:
+                md = curves[p_key][method]
+                ax.plot(np.array(md['recall']), np.array(md['precision_mean']),
+                        color=method_color(method), linewidth=1.3, linestyle=linestyle_map[p])
+    ax.set_xlabel('Recall')
+    ax.set_ylabel('Precision')
+    ax.set_xlim([0, 1])
+    ax.set_ylim([0, 1])
+    return selected_p, linestyle_map
 
 
 def draw_pr_auc(ax, curves, methods, p_values_json, p_symbol=SPLIT, odds=False):
@@ -339,14 +331,6 @@ def plot_summary_figure(csv_file, json_file, output_file, q, lfc, p_symbol=SPLIT
     # Methods from CSV (ensures alignment with DE summaries)
     methods = method_draw_order(df['method'])
     method_to_color = {method: method_color(method) for method in methods}
-    # Select p values: min, median (closest), max from JSON (where PR curves exist)
-    p_sorted = np.sort(p_values_json)
-    p_min = p_sorted[0]
-    p_max = p_sorted[-1]
-    p_median_val = np.median(p_sorted)
-    p_median = p_sorted[np.argmin(np.abs(p_sorted - p_median_val))]
-    selected_p = [p_min, p_median, p_max]
-    linestyle_map = {p_min: ':', p_median: '--', p_max: '-'}
     # Build figure
     fig, axes = plt.subplots(2, 2, figsize=plot_style.figsize(2, 2))
     ax_tpr, ax_fpr = axes[0, 0], axes[0, 1]
@@ -372,21 +356,7 @@ def plot_summary_figure(csv_file, json_file, output_file, q, lfc, p_symbol=SPLIT
     ax_fpr.tick_params(axis='both', which='major')
     draw_pr_auc(ax_prauc, curves, methods, p_values_json, p_symbol, odds)
     # Selected PR curves (min, median, max p); the keys are drawn once, outside
-    for method in methods:
-        color = method_to_color[method]
-        for p in selected_p:
-            p_key = f"p_{p:.6f}"
-            if p_key in curves and method in curves[p_key]:
-                md = curves[p_key][method]
-                recall = np.array(md['recall'])
-                precision_mean = np.array(md['precision_mean'])
-                ax_prcurves.plot(recall, precision_mean,
-                                 color=color, linewidth=1.3, linestyle=linestyle_map[p])
-    ax_prcurves.set_xlabel('Recall')
-    ax_prcurves.set_ylabel('Precision')
-    ax_prcurves.set_xlim([0, 1])
-    ax_prcurves.set_ylim([0, 1])
-    ax_prcurves.tick_params(axis='both', which='major')
+    selected_p, linestyle_map = draw_pr_curves(ax_prcurves, curves, methods, p_values_json)
     plt.tight_layout()
     method_and_p_legends(fig, methods, selected_p, linestyle_map, p_symbol)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')

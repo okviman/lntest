@@ -23,6 +23,7 @@ from method_colors import method_color, method_label, method_order
 from paths import data_dir, fig_name, require_input, results_dir
 
 CORRECTIONS = {'BH': ('fdr_bh', 'benjamini-hochberg'), 'Bonferroni': ('bonferroni', 'bonferroni')}
+SHOWN = 'Bonferroni'   # the correction the figures plot, as every experiment's
 REMOVED = (0, 20, 35)
 
 
@@ -58,7 +59,7 @@ def count_degs(X, Y, n_removed):
 
 
 def plot(df, out):
-    d = df[(df['correction'] == 'BH') & (df['n_removed'] == 0)].set_index('method')
+    d = df[(df['correction'] == SHOWN) & (df['n_removed'] == 0)].set_index('method')
     methods = method_order(d.index)
     fig, ax = plt.subplots(figsize=plot_style.figsize())
     ax.bar(range(len(methods)), d.loc[methods, 'n_degs'], width=0.6,
@@ -75,8 +76,8 @@ def plot(df, out):
 
 
 def plot_by_removal(df, out):
-    """BH counts for each capsule set, one group of method bars per number of capsules removed."""
-    d = df[df['correction'] == 'BH']
+    """SHOWN's counts for each capsule set, one group of method bars per number of capsules removed."""
+    d = df[df['correction'] == SHOWN]
     methods = method_order(d['method'].unique())
     width = 0.8 / len(methods)
     fig, ax = plt.subplots(figsize=plot_style.figsize(1.6))  # nine bars need more than one panel's width

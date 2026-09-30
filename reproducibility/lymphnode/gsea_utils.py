@@ -10,7 +10,7 @@ import pandas as pd
 from lntest import get_LN_lfcs as get_DELN_lfcs
 
 
-def scanpy_sig_test_with_scores(X, Y, method='t-test', normalization='CP10K', corr_method="benjamini-hochberg"):
+def scanpy_sig_test_with_scores(X, Y, method='t-test', normalization='CP10K', corr_method="bonferroni"):
     """
     Run scanpy DE test and return log fold changes, test statistics (scores), p-values, and adjusted p-values.
     
@@ -74,7 +74,8 @@ def scanpy_sig_test_with_scores(X, Y, method='t-test', normalization='CP10K', co
     sc.pp.log1p(adata)
 
     # Run Differential Expression Analysis using Scanpy
-    sc.tl.rank_genes_groups(adata, groupby="group", method=method, reference="X", corr_method=corr_method)
+    sc.tl.rank_genes_groups(adata, groupby="group", method=method, reference="X", corr_method=corr_method,
+                            tie_correct=True)
 
     # Extract DE Results including test scores
     de_results = pd.DataFrame({
@@ -164,7 +165,7 @@ def de_test_with_scores(X, Y, gene_names=None):
             lfcs, p_vals, test_statistics, log_abs_statistic = get_DELN_lfcs(
                 Y, X, test='t', return_log_abs_statistic=True
             )
-            adj_pvals = smm.multipletests(p_vals, alpha=0.05, method='fdr_bh')[1]
+            adj_pvals = smm.multipletests(p_vals, alpha=0.05, method='bonferroni')[1]
             
             # Store log_abs_statistic for GSEA ranking
             # For now, we'll use test_statistics as before, but store log_abs_statistic separately

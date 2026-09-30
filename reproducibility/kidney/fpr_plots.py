@@ -81,22 +81,26 @@ def plot_fpr_log(csv_file, output_file, p_label=SAMPLING, odds=False):
         what="this arm's FPR-vs-subsampling results",
         source="run `python -m kidney.umi_null` first",
     ))
-    df['method_display'] = df['method'].map(method_label)
-    zero = plot_style.zero_row(df['fpr_mean'], df['fpr_std'])
     fig, ax = plt.subplots(1, 1, figsize=plot_style.figsize())
-    for method in method_draw_order(df['method_display']):
-        d = df[df['method_display'] == method].sort_values('p')
-        plot_style.errorbar_log(ax, p_axis(d['p'], p_label, odds)[0], d['fpr_mean'], d['fpr_std'], zero, label=method,
-                                color=method_color(method))
-    plot_style.log_axis_with_zero(ax, zero, (df['fpr_mean'] + df['fpr_std']).max())
-
-    ax.set_xlabel(p_axis([], p_label, odds)[1])
-    ax.set_ylabel('FPR')
+    draw_fpr_log(ax, df, p_label, odds)
     plt.tight_layout()
     plot_style.legend_outside(fig)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
+
+
+def draw_fpr_log(ax, df, p_label=SAMPLING, odds=False):
+    """plot_fpr_log's panel, drawn into ax."""
+    df = df.assign(method_display=df['method'].map(method_label))
+    zero = plot_style.zero_row(df['fpr_mean'], df['fpr_std'])
+    for method in method_draw_order(df['method_display']):
+        d = df[df['method_display'] == method].sort_values('p')
+        plot_style.errorbar_log(ax, p_axis(d['p'], p_label, odds)[0], d['fpr_mean'], d['fpr_std'], zero, label=method,
+                                color=method_color(method))
+    plot_style.log_axis_with_zero(ax, zero, (df['fpr_mean'] + df['fpr_std']).max())
+    ax.set_xlabel(p_axis([], p_label, odds)[1])
+    ax.set_ylabel('FPR')
 
 
 if __name__ == '__main__':

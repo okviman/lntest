@@ -167,7 +167,7 @@ def create_pseudo_bulk(counts, batch_ids, group_size=200):
 
 
 def run_de_celltype_vs_rest(adata, layer='counts', celltype_col='leiden', 
-                             corr_method='fdr_bh', normalize=True, 
+                             corr_method='bonferroni', normalize=True, 
                              normalization='CP10K', test='t',
                              use_pseudo_bulk=False, group_size=200, batch_col='batch_id',
                              use_log_abs_statistic=False):
@@ -184,7 +184,7 @@ def run_de_celltype_vs_rest(adata, layer='counts', celltype_col='leiden',
     celltype_col : str
         Column name in adata.obs containing celltype labels (default: 'leiden')
     corr_method : str
-        Multiple testing correction method (default: 'fdr_bh')
+        Multiple testing correction method (default: 'bonferroni')
     normalize : bool
         Whether to normalize counts (default: True)
     normalization : str
@@ -473,9 +473,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--corr_method', 
         type=str, 
-        default='fdr_bh',
+        default='bonferroni',
         choices=['bonferroni', 'fdr_bh', 'fdr_by', 'fdr_tsbh', 'fdr_tsbky'],
-        help='Multiple testing correction method (default: fdr_bh)'
+        help='Multiple testing correction method (default: bonferroni)'
     )
     parser.add_argument(
         '--no_normalize', 

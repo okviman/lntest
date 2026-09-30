@@ -45,7 +45,7 @@ def fpr_test_single(X, Y):
             method_key = "Scanpy " + method
         if method == "DELN":
             lfcs, DELN_p_vals = get_DELN_lfcs(Y, X, test='t')
-            adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='fdr_bh')[1]
+            adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='bonferroni')[1]
             if np.sum(adj_pvals >= 0.05) == n_genes:
                 results[method_key] = {"fpr": 0., "fpr_filtered": 0.}
             else:

@@ -15,8 +15,10 @@ NY = 1000
 N_GENES = 1500
 FANOS = [1, 2, 4, 8]  # ratio grid: Var(X) as multiples of the mean; 1 is Poisson
 # Var(Y)/Var(X), a quarter-octave apart. Ratios below 1 would repeat these settings
-# with the groups swapped: both tests are two-sided and the groups are the same size.
+# with the groups swapped: every test is two-sided and the groups are the same size.
 RATIOS = 2.0 ** np.linspace(0, 4, 17)
+# The tests each grid runs: the ratio grid is Fig 1c's; the dispersion grid reproduces RECOMB Fig 1, which had two.
+TESTS = {'ratio': ('log1p t-test', "LN's t-test", 'Wilcoxon'), 'dispersion': ('log1p t-test', "LN's t-test")}
 
 
 def draw_nb(mu, d, size):
@@ -45,8 +47,24 @@ def d2_grid(d1, base_mu, grid):
     return (RATIOS * var_x - base_mu) / base_mu ** 2
 
 
+def adjusted_pvalues(X, Y, test):
+    """One test's Bonferroni-adjusted p-values: LN's on the counts, scanpy's t-test and tie-corrected Wilcoxon on
+    CP10K log1p."""
+    if test == "LN's t-test":
+        return smm.multipletests(get_LN_lfcs(Y, X, test='t')[1], alpha=0.05, method='bonferroni')[1]
+    return scanpy_sig_test(X, Y, method='wilcoxon' if test == 'Wilcoxon' else 't-test')[1]
+
+
+def score(adj_pvals, true_lfcs, metric):
+    """The metric at adjusted p < 0.05; a run that calls nothing has accuracy 1 and FPR 0, which
+    get_test_results cannot build a confusion matrix for."""
+    if np.sum(adj_pvals >= 0.05) == len(adj_pvals):
+        return {"accuracy": 1., "fpr": 0.}[metric]
+    return get_test_results(adj_pvals, true_lfcs, verbose=False)[metric]
+
+
 def simulate(base_mu, metric, seed=0, grid='ratio'):
-    """One row per (Var(X), Var(Y), method): the metric over N_GENES null genes."""
+    """One row per (Var(X), Var(Y), test): the metric over N_GENES null genes."""
     np.random.seed(seed)
     mu1 = base_mu + np.zeros((1, N_GENES))
     mu2 = base_mu
@@ -59,43 +77,29 @@ def simulate(base_mu, metric, seed=0, grid='ratio'):
     for i, d1 in enumerate(d1_list):
         d2_list = d2_grid(d1, base_mu, grid)
         var_2 = d2_list * base_mu ** 2 + base_mu
-        results = {"sc": [], "LN": []}
+        results = {test: [] for test in TESTS[grid]}
         for d2 in d2_list:
             X = draw_nb(mu1, d1, (NX, N_GENES))
             Y = draw_nb(mu2, d2, (NY, N_GENES))
+            for test in results:
+                results[test] += [score(adjusted_pvalues(X, Y, test), true_lfcs, metric)]
 
-            sc_lfs, sc_adj_pvals = scanpy_sig_test(X, Y)
-            if np.sum(sc_adj_pvals >= 0.05) == N_GENES:
-                # 100% accuracy and 0% TPR --- conf_mat crashes in this setting
-                sc_results = {"accuracy": 1., "fpr": 0.}
-            else:
-                sc_results = get_test_results(sc_adj_pvals, true_lfcs, verbose=False)
-
-            LN_lfcs, LN_p_vals = get_LN_lfcs(Y, X, test='t')
-            LN_adj_pvals = smm.multipletests(LN_p_vals, alpha=0.05, method='fdr_bh')[1]
-            if np.sum(LN_adj_pvals >= 0.05) == N_GENES:
-                # 100% accuracy and 0% TPR --- conf_mat crashes in this setting
-                ln_results = {"accuracy": 1., "fpr": 0.}
-            else:
-                ln_results = get_test_results(LN_adj_pvals, true_lfcs, verbose=False)
-
-            results["sc"] += [sc_results[metric]]
-            results["LN"] += [ln_results[metric]]
-
-        for method, key in (('log1p t-test', 'sc'), ("LN's t-test", 'LN')):
+        for test in results:
             rows += [
                 {'base_mu': base_mu, 'metric': metric, 'var_x': var_1[i],
-                 'var_y': vy, 'method': method, 'value': v}
-                for vy, v in zip(var_2, results[key])
+                 'var_y': vy, 'method': test, 'value': v}
+                for vy, v in zip(var_2, results[test])
             ]
     return pd.DataFrame(rows)
 
 
 def plot(df, metric, out):
-    """One panel per method, one line per Var(X)."""
+    """One panel per test, one line per Var(X)."""
     plot_style.use()
-    fig, axes = plt.subplots(1, 2, figsize=plot_style.figsize(2), sharey=True)
-    for ax, method in zip(axes, method_order(df.method)):
+    methods = method_order(df.method)
+    fig, axes = plt.subplots(1, len(methods), figsize=plot_style.figsize(len(methods)), sharey=True, squeeze=False)
+    axes = axes[0]
+    for ax, method in zip(axes, methods):
         for vx in sorted(df.var_x.unique()):
             s = df[(df.method == method) & (df.var_x == vx)]
             ax.plot(s.var_y.astype(int), s.value, lw=1.3, label=f"Var$(X$)={int(vx)}")
@@ -126,7 +130,7 @@ def run(base_mu, metric, seed=0, grid='ratio', plot_only=False):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(
-        description="Null-scenario FPR/accuracy against Var(Y), log1p t-test vs LN's t-test."
+        description="Null-scenario FPR/accuracy against Var(Y): LN's t-test, the log1p t-test and, on the ratio grid, Wilcoxon."
     )
     ap.add_argument('--base-mu', type=float, default=50,
                     help="shared NB mean (was hardcoded). RECOMB's var_v_fpr.png "

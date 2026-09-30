@@ -18,7 +18,7 @@ sources:
     dest: citeseq/data/sc5p_v2_hs_PBMC_10k_filtered_feature_bc_matrix.h5
     sha256: d82e92f73fbe01bc2b41b1aa96220617cdbad53ef5387edead67daf5f012cc96
     bytes: 29938385
-    arms: [citeseq]
+    arms: [citeseq, clustering]   # clustering: the second dataset, clustering/pbmc10k_prep.py
 
   - name: kang2018
     what: Kang et al. 2018 PBMC IFN-beta dataset, for the celltype arm
@@ -64,6 +64,15 @@ sources:
     extract_to: lymphnode/data
     arms: [lymphnode]
 
+  - name: lymphnode-he-fullres
+    what: >-
+      Visium HD Human Lymph Node FFPE, the full-resolution H&E, only for the cell close-up in
+      Fig 2's lymph node diagram
+    url: https://cf.10xgenomics.com/samples/spatial-exp/4.0.1/Visium_HD_Human_Lymph_Node_FFPE/Visium_HD_Human_Lymph_Node_FFPE_tissue_image.tif
+    dest: lymphnode/data/Visium_HD_Human_Lymph_Node_FFPE_tissue_image.tif
+    sha256: 2dcff022a36483501ae918f783b5f46b12326c3e9c287f4a8972927b93ed96ca
+    bytes: 2218305037
+    arms: [lymphnode]
   - name: lymphnode-binned
     what: Visium HD Human Lymph Node FFPE, binned_outputs (2um and 16um matrices)
     url: https://cf.10xgenomics.com/samples/spatial-exp/4.0.1/Visium_HD_Human_Lymph_Node_FFPE/Visium_HD_Human_Lymph_Node_FFPE_binned_outputs.tar.gz

@@ -93,7 +93,7 @@ def main():
 
     # ----------- Metrics computations start here ------------
 
-    # 1. Get cluster signatures (top N sig genes) via evaluation_utils
+    # 1. Get cluster signatures (top N significant upregulated genes) via evaluation_utils
     print("Preparing DE signatures ...")
     cluster_signatures = dict()
     for method in de_methods:
@@ -104,10 +104,10 @@ def main():
             cluster_signatures[method][key] = dict()
             for cluster in clusters:
                 cluster_signatures[method][key][cluster] = get_top_sig_genes_adata(
-                    adata, cluster, top_n=top_genes, key=method_key, pval_threshold=0.05
+                    adata, cluster, top_n=top_genes, key=method_key, pval_threshold=0.05, positive_score_only=True
                 )
 
-    # 2. All significant DEGs (padj < 0.05)
+    # 2. All significant upregulated genes (padj < 0.05, score > 0): a cluster's markers are higher in it
     all_sig_cluster_signatures = dict()
     for method in de_methods:
         all_sig_cluster_signatures[method] = dict()
@@ -117,12 +117,12 @@ def main():
             all_sig_cluster_signatures[method][key] = dict()
             for cluster in clusters:
                 all_sig_cluster_signatures[method][key][cluster] = get_all_sig_genes_adata(
-                    adata, cluster, key=method_key, pval_threshold=0.05
+                    adata, cluster, key=method_key, pval_threshold=0.05, positive_score_only=True
                 )
 
     # ---------- Signature-based metrics, computed for each signature set ----------
-    # Two signature sets are evaluated: the top-N significant genes per cluster and
-    # the full set of significant genes per cluster. Each produces its own Jaccard
+    # Two signature sets are evaluated: the top-N significant upregulated genes per cluster
+    # and all of its significant upregulated genes. Each produces its own Jaccard
     # and recall heatmap matrices plus avg-Jaccard, avg-recall and best-match CSVs,
     # tagged in the filename (e.g. "top20" vs "allsig").
     def compute_signature_metrics(signatures, tag):

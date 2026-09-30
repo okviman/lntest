@@ -40,7 +40,7 @@ Y = np.random.negative_binomial(n=r2, p=p2, size=(ny, n_genes))
 for method in methods:
     if method == "LN":
         _, LN_p_vals = get_LN_lfcs(Y, X, test='t')
-        adj_pvals = smm.multipletests(LN_p_vals, alpha=0.05, method='fdr_bh')[1]
+        adj_pvals = smm.multipletests(LN_p_vals, alpha=0.05, method='bonferroni')[1]
     else:
         _, adj_pvals = scanpy_sig_test(X, Y, method=method)
         method = "Scanpy " + method

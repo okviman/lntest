@@ -170,15 +170,17 @@ python -m synthetic_nb.latex_tables    # formats the sparse CSV as a LaTeX table
 python -m synthetic_nb.null            # ~35 s; base_mu 50 by default
 python -m synthetic_nb.null --base-mu 5
 python -m synthetic_nb.null --base-mu 5 --plot-only   # redraw from the sweep's CSV
-python -m synthetic_nb.null_ratio      # both sweeps side by side, against Var(Y)/Var(X)
+python -m synthetic_nb.null_ratio      # both sweeps against Var(Y)/Var(X), side by side, narrower and stacked
 python -m synthetic_nb.lfc_confidence_intervals
 ```
 
 `null.py` samples a grid of variance ratios by default: Var(X) is 1, 2, 4 and 8 times the mean (1 is Poisson), and Var(Y)/Var(X) runs from 1 to 16 in quarter-octave steps.
-Ratios below 1 would repeat the same settings with the groups swapped: both tests are two-sided and the groups are the same size.
-Its outputs carry a `_ratio_grid` suffix.
-`--grid dispersion` is the grid behind RECOMB Fig 1 — the same 20 values of Var(Y) for every Var(X) — and writes the `null_fpr_by_var_mu{5,50}.*` that `synthetic_nb/results/checksums.sha256` checksums; the default ratio grid
-writes `null_fpr_by_ratio_mu{5,50}.*`, which `null_ratio` combines into `null_fpr.pdf`.
+On it the null runs LN's t-test, the log1p t-test and Wilcoxon, each Bonferroni-corrected and the Wilcoxon tie-corrected, as everywhere; the dispersion grid below keeps RECOMB's two tests.
+Ratios below 1 would repeat the same settings with the groups swapped: every test is two-sided and the groups are the same size.
+`--grid dispersion` is the grid behind RECOMB Fig 1 — the same 20 values of Var(Y) for every Var(X) — and writes `null_fpr_by_var_mu{5,50}.*`; the default ratio grid
+writes `null_fpr_by_ratio_mu{5,50}.*`, which `null_ratio` combines into `null_fpr.pdf` (panels side by side),
+`null_fpr_narrow.pdf` (side by side, 30% narrower, the same text sizes) and `null_fpr_stacked.pdf` (one above the other).
+`synthetic_nb/results/checksums.sha256` checksums both grids' outputs.
 
 `small_test.py` reproduces **one** run of a table averaged over 20; its numbers are not expected to match the paper exactly.
 `de_test.py`'s `sparse` setting has RECOMB Table 2's design and its `dense` setting Table 1's, without the batch effect both tables were run with and the paper does not describe: the first half of each group's cells had every mean multiplied by e.
@@ -195,7 +197,7 @@ python -m citeseq.plots                # every CITE-seq figure, from the CSVs ab
 
 `degs_metrics.pdf` shows the metrics of the table (RECOMB Table 3: accuracy, precision, TPR, TNR, F1),
 and FPR, as box plots, one point per replicate. `degs_summary.pdf` has the kidney with-DEG summary's panels for
-this experiment's one balanced condition: TPR and FPR at BH 0.05, PR-AUC from the ranking by adjusted
+this experiment's one balanced condition: TPR and FPR at Bonferroni 0.05, PR-AUC from the ranking by adjusted
 p-value, and the mean precision-recall curves, computed as `kidney/spot_split.py` computes them.
 
 The R stages that build `memory_CD4.h5ad` from the raw 10x download are in `citeseq/R/`, run with `Rscript`.
@@ -215,6 +217,15 @@ sed 's|^adata_path:.*|adata_path: "clustering/results/pbmc3k_filtered_gene_bc_ma
     clustering/config.yaml > .metrics_config.yaml          # gitignored, see .gitignore
 python -m clustering.metrics --config .metrics_config.yaml --output-dir clustering/results
 python -m clustering.plots   --metrics-dir clustering/results/metrics --config clustering/config.yaml
+python -m clustering.heldout_fp --config clustering/config.yaml   # about a minute; false positives on held-out negatives
+# the same on a second, deeper dataset: PBMC10k's RNA from the CITE-seq arm's input (python -m fetch_data --arm citeseq)
+python -m clustering.pbmc10k_prep
+python -m clustering.de --config clustering/config_pbmc10k.yaml --output-dir clustering/results/pbmc10k --skip-mast   # minutes
+sed 's|^adata_path:.*|adata_path: "clustering/results/pbmc10k/pbmc10k_rna_DE.h5ad"|' \
+    clustering/config_pbmc10k.yaml > .metrics_config.yaml
+python -m clustering.metrics --config .metrics_config.yaml --output-dir clustering/results/pbmc10k
+python -m clustering.plots   --metrics-dir clustering/results/pbmc10k/metrics --config clustering/config_pbmc10k.yaml
+python -m clustering.heldout_fp --config clustering/config_pbmc10k.yaml --output-dir clustering/results/pbmc10k    # tens of minutes
 ```
 
 Run them in that order, and **pass `--skip-mast`** (it still needs `R_HOME` — the flag does not avoid
@@ -379,23 +390,26 @@ are the same numbers from the same random draws. Its per-replicate seeds now com
 
 **Full-depth negative control.** `python -m kidney.full_depth` (seconds) splits all 161 capsules at the
 median library size, with no downsampling and no capsule removed, and writes the DEGs each method calls
-under BH and under Bonferroni to `full_depth_null.csv`, plotting the BH counts in `full_depth_null.pdf`.
+under BH and under Bonferroni to `full_depth_null.csv`, plotting the Bonferroni counts in `full_depth_null.pdf`.
 It repeats the split after removing the 20 and the 35 lowest-UMI capsules, and `full_depth_null_by_removal.pdf`
-puts the three capsule sets side by side (BH: 627 / 7,130 / 10,742, then 1 / 1,137 / 3,879, then 0 / 0 / 0).
+puts the three capsule sets side by side (Bonferroni, LN / log1p / Wilcoxon: 10 / 1,099 / 3,732, then 1 / 26 / 107, then 0 / 0 / 2).
 `python -m kidney.capsule_qc` (about 10 s) shows why the other kidney runs drop the 35 capsules with the lowest
 total UMI, the reason `main_recomb25.tex:751` gives: `capsule_qc.pdf` has the capsule-size distribution, split at
 the median into the shallower and the deeper half, and the DEGs each method calls on this split as the smallest capsules are removed one by one
-(`capsule_removal_scan.csv`). Every method calls none from 33 removed; 35 leaves two to spare.
-Under BH: LN 627, log1p 7,130, Wilcoxon 10,742, of 15,216 genes. The manuscript's numbers are the
-Bonferroni ones, which a one-off check on 2026-09-24 had already reproduced:
+(`capsule_removal_scan.csv`). Under Bonferroni LN calls none from 22 removed and the log1p t-test none from 33, while the
+tie-corrected Wilcoxon still calls 2 at 35, the end of the scan. The 35 was chosen when the scan was BH with the untied
+Wilcoxon, under which every method called none from 33.
+The manuscript's numbers are the Bonferroni ones, which the current defaults reproduce for LN and the log1p t-test;
+the manuscript's Wilcoxon had no tie correction (under BH: LN 627, log1p 7,130, tie-corrected Wilcoxon 12,171, of 15,216 genes):
 
 | Method | Here | `main_recomb25.tex` |
 |---|---|---|
 | LN's $t$-test | 10 | 10 |
 | log1p $t$-test | 1099 | 1099 |
-| Wilcoxon | 2878 | 2876 |
+| Wilcoxon | 3732 (2878 without tie correction) | 2876 |
 
-Two exact, Wilcoxon +2 of 2876 (0.07%), most likely rank-tie handling across scipy versions.
+Two exact. Without tie correction Wilcoxon gives 2,878, +2 of 2,876 (0.07%), most likely rank-tie handling across scipy
+versions; the tie-corrected test, the default since 2026-09-30, calls 3,732.
 Takes seconds, and is worth running before committing to a 10,000-replicate sweep.
 
 The two UMI scripts read `merged_blobs_in_cluster_5.h5ad` (one row per capsule); `spot_split` reads `podocytes_2um.h5ad` (one row per 2 µm spot, with a `shape_id` column). They are not interchangeable — see [Known gaps](#known-gaps).
@@ -411,7 +425,8 @@ bash lymphnode/reproduce_vishd_cluster1_cluster3.sh
 Then:
 
 ```bash
-python -m lymphnode.subsampling --config lymphnode/config_50rep.yaml --output-dir lymphnode/results
+python -m lymphnode.pseudobulk_reference --config lymphnode/config_50rep.yaml   # ~10 s: the reference every method is scored against
+python -m lymphnode.subsampling --config lymphnode/config_50rep.yaml --output-dir lymphnode/results --skip-mast
 python -m lymphnode.subsampling --config lymphnode/config_50rep.yaml --output-dir lymphnode/results --plot-only  # redraw figures from the CSV
 python -m lymphnode.ln_de_vs_rest   --input <h5ad> --output de.csv
 python -m lymphnode.cluster_de_gsea --input <h5ad> --output_de de.csv --output_gsea gsea.csv
@@ -429,6 +444,69 @@ python -m theory.log1p_toy           # ~1 s; equal means, unequal log1p means (w
 These are exempt from depending on `lntest` — being readable in one file, with the algebra inline, matters more here.
 The exemption is on the *code*, not the maths: where the manuscript prints a formula, that formula is the specification.
 
+### `figures` — Fig 1, Fig 2 and the Extended Data figures, assembled
+
+```bash
+python -m figures.fig1     # a few seconds -> figures/results/fig1.pdf and its panels fig1_{c..h}_*.pdf
+python -m figures.fig2     # a few seconds -> figures/results/fig2.pdf and its panels fig2_{b..i}_*.pdf
+python -m figures.ed1      # a few seconds -> figures/results/ed1.pdf and its panels ed1_{a..d}_*.pdf
+python -m figures.ed2      # a few seconds -> figures/results/ed2.pdf and its panels ed2_{a,b}_*.pdf
+python -m figures.ed3      # a few seconds -> figures/results/ed3.pdf and its panels ed3_{a..c}_*.pdf
+python -m figures.ed4      # a few seconds -> figures/results/ed4.pdf and its panels ed4_{a..d}_*.pdf
+python -m figures.ed5      # a few seconds -> figures/results/ed5.pdf and its panels ed5_{a..e}_*.pdf
+python -m figures.ed6      # a few seconds -> figures/results/ed6.pdf and its panel ed6_a_degs_summary.pdf
+python -m figures.ed7      # a few seconds -> figures/results/ed7.pdf and its panel ed7_a_lymphnode_runtime.pdf
+python -m figures.ed8      # a few seconds -> figures/results/ed8.pdf and its panels ed8_{a..d}_*.pdf
+python -m figures.ed9      # a few seconds -> figures/results/ed9.pdf and its panels ed9_{a,b}_*.pdf
+python -m figures.ed10     # a few seconds -> figures/results/ed10.pdf and its panels ed10_{a..f}_*.pdf
+```
+
+Draws panels c-h from the arms' results — `synthetic_nb`'s `null_ratio` sweeps and `kidney`'s capsule figures and
+spot-splitting runs, which must exist first — and assembles the whole figure with panels a and b, which are
+drawn elsewhere and read as `fig1a.pdf` and `fig1b.pdf` from `Claude outputs/` beside the repositories.
+Nature's figure guide sets the page: main figures 183 mm wide, Extended Data at most 180 mm, both at most 170 mm tall,
+text 5-7 pt (`figures/layout.py`: `WIDTH`, `ED_WIDTH`, `MAX_H`; `assemble` warns past 170 mm).
+The figure is 183 mm (7.2 in) wide. Every panel is placed at 100%, never scaled, so its text prints at the size it was
+drawn: 7 pt for axis labels, ticks and titles, as in a and b, and 6 pt for legends.
+The layout is four rows (a / b c / d e / f g h), each panel top-aligned in its row; c takes the width b leaves, and a row
+wider than the figure stops the script. The axes are placed in inches, so f, g and h have identical axes, and the
+method colours are keyed once, beside h. The letters are drawn over the panels, 8 pt bold.
+The same panels at their own sizes, for the supplement or slides, are the arms' figures.
+Every figure shares `figures/layout.py`: the page width, the text sizes, the margins and the assembly.
+
+Fig 2 is two blocks in three columns: the lymph node (a diagram, b-d the pooled `precision`, `recall` and `auprc`
+against the pseudo-bulk reference, the method key) and PBMC10k, the clustering arm's second dataset (e diagram, f `n_sig_genes`, g `avg_lfc` on a log
+axis, h the false-positive rate on held-out negatives against the variance ratio from `clustering.heldout_fp`, i the
+all-significant-genes Jaccard heatmaps at 10 clusters), drawn by `lymphnode.subsampling.draw_pooled` and
+`clustering.plots.draw_box` and `draw_heatmap`. The two diagrams come from `Claude outputs/fig2-drafts/fig2_diagrams.py`,
+run in this environment; the lymph node one uses the full-resolution H&E (`python -m fetch_data --arm lymphnode`,
+`lymphnode-he-fullres`, 2.2 GB), the PBMC one the clustering arm's UMAP and Leiden clusters of either dataset.
+
+Extended Data Fig 1 assembles `synthetic_nb`'s `lfc_ci_ln`, `lfc_ci_log1p`, `degs_metrics_sparse` and `degs_metrics_dense`,
+each redrawn at its print size by its own drawing code (`lfc_confidence_intervals.draw`, `de_ratio.draw_metric`);
+Extended Data Fig 2 is `kidney`'s `capsule_qc`, its two panels as a and b, drawn from the saved `capsule_removal_scan.csv`
+by `capsule_qc.draw_sizes` and `draw_scan`.
+Extended Data Fig 3 is `kidney`'s `split_degs_tpr_fpr`, `split_degs_ap_pr_auc` and `split_degs_pr_curves_grid`, drawn from
+the saved spot-splitting results by `spot_split_plots.draw_tpr_fpr`, `draw_ap_pr_auc` and `draw_pr_curve`.
+Extended Data Fig 4 is the UMI-downsampling counterpart in Fig 1 f-h's layout: `downsample_null_fpr_log`,
+`downsample_degs_100rep_pr_auc` and `_pr_curves` sharing one method key, and `downsample_degs_100rep_tpr_fpr`.
+The rows the kidney figures share are in `figures/kidney_panels.py`.
+Extended Data Fig 5 is `citeseq`'s `gating_cd3`, `gating_cd4`, `gating_cd45ra`, `lfc_vs_true_all_methods` and
+`lfc_error_all_methods`, drawn by `citeseq.plots`' `draw_gating` and `draw_scatter`; Extended Data Fig 6 is its
+`degs_summary`, drawn by `draw_summary`.
+Extended Data Fig 7 is the lymph node's runtime, drawn by `lymphnode.subsampling.draw_pooled`.
+Extended Data Fig 8 is PBMC10k in full: the `avg_jaccard` box plots for all significant genes and the top 20
+(`clustering.plots.draw_box`) and the Jaccard heatmaps for
+all significant genes and for the top 20, a method per row and a resolution per column, on the arm's colour scale
+(`draw_heatmap`, labelled on the grid's outer edge by `label_heatmap_grid`).
+Extended Data Fig 9 is PBMC10k's held-out false positives in full, with the Wilcoxon without tie correction (scanpy's
+current default): by cluster size, by the tolerance that makes a gene a negative, and by multiple-testing correction
+(Bonferroni, BH, none; `clustering.heldout_fp.draw_fpr`).
+Extended Data Fig 10 is PBMC3k, the sparser first dataset: its DEG counts, mean |LFC|, both Jaccard box plots and its
+held-out false positives, pooled and by cluster size, with the Wilcoxon without tie correction.
+A change to a panel is made in the arm's drawing code, so the arm's own figure changes with it; the `figures/`
+scripts only place panels and set what is figure-wide (page, text size, a key shared by several panels).
+
 ### `nullsplit` — null split false-positive rate
 
 `nullsplit/ziln_null_fpr.ipynb`, run from `reproducibility/nullsplit/`. Its two CSVs are committed.
@@ -441,11 +519,15 @@ Each also holds `logs/` from its last run and `archive/<run>/` for earlier runs 
 **Nothing new under `*/results/` is committed**: `.gitignore` ignores those directories, and only the
 nine files tracked before that rule stay tracked (below).
 
-**Every gene-wise test is corrected with Benjamini-Hochberg**, scanpy's default, for every method, and
-each call site says so explicitly rather than inheriting a default. Until 2026-09-24 LN was corrected
-with Bonferroni and its baselines with BH; on 2026-09-24 every method moved to Bonferroni, and on
-2026-09-25 every method moved to BH, along with `lntest`'s own default. The one BH that is not
-gene-wise, across gene sets in `lymphnode/gsea_utils.py`, was BH throughout.
+**Every gene-wise test is corrected with Bonferroni, and the Wilcoxon is tie-corrected**, Seurat's defaults
+(`FindMarkers`: `p.adjust(method = "bonferroni", n = nrow(object))`; its Wilcoxon adjusts for ties), for every
+method in every experiment, since 2026-09-30. The shared helpers (`baselines.scanpy_sig_test`, `de_utils`) default
+to both, and the other call sites pass them explicitly. Until 2026-09-24 LN was corrected with Bonferroni and its
+baselines with BH; on 2026-09-24 every method moved to Bonferroni, on 2026-09-25 to BH (scanpy's default), and on
+2026-09-30 back to Bonferroni with the tie-corrected Wilcoxon. `lntest`'s own default stays BH, scanpy's.
+Three BH remain on purpose: the lymph node's pseudo-bulk reference (DESeq2's convention; it defines the truth, it is
+not a method under comparison), GSEA across gene sets in `lymphnode/gsea_utils.py`, and `clustering.heldout_fp`'s
+CSV, which also counts BH and uncorrected calls, and scanpy's Wilcoxon without tie correction, for Extended Data.
 
 **Every output is byte-reproducible except wall-clock timings.** Regenerated twice from scratch on
 2026-09-24 and checked file by file, with LN's trigamma as psi_1(a) = 1/a. Three things make that
@@ -468,8 +550,8 @@ June 2026 manifests, which pin the run behind the published PBMC3k and CITE-seq 
 | `clustering/results/checksums.sha256` | 68 metric CSVs, 22 figures |
 | `citeseq/results/checksums.sha256` | metrics, per-gene results, LaTeX table, 102 figures |
 | `kidney/results/checksums.sha256` | all 13 outputs, spot splitting and UMI downsampling |
-| `lymphnode/results/checksums.sha256` | 28 figures (the CSVs carry wall-clock columns, so compare them by value) |
-| `synthetic_nb/results/checksums.sha256` | the two variance sweeps (`null --grid dispersion`) and three dispersion boxplots |
+| `lymphnode/results/checksums.sha256` | the pseudo-bulk reference and 25 figures (the results CSVs carry wall-clock columns, so compare them by value) |
+| `synthetic_nb/results/checksums.sha256` | the two variance sweeps on each grid (`null`, `null --grid dispersion`), Fig 1c's three `null_ratio` figures, three dispersion boxplots |
 | `theory/results/checksums.sha256` | three figures, two CSVs |
 
 `reference/unattributed/` holds two `.npy` files no script reads. Read `PROVENANCE.md` before assuming anything about them.
@@ -494,8 +576,8 @@ synthetic_nb/results/de_metrics_mu10_nobatch.csv
 ```
 
 `citeseq/exp.py` writes the two CSVs, so a run replaces the June versions in the working tree and
-`git status` shows them; `git checkout` restores them. Under BH, `CITE_seq_metrics.csv` comes back
-byte-identical to the June file, which was BH for all three methods.
+`git status` shows them; `git checkout` restores them. Under BH with the untied Wilcoxon, `CITE_seq_metrics.csv` came
+back byte-identical to the June file, which was BH for all three methods; under the current defaults it differs.
 
 ## The equivalence harness
 

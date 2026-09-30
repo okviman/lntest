@@ -94,10 +94,10 @@ for i in tqdm(range(replicates), desc="Running replicates"):
     # Method 1: DELN
     lfcs_deln, pvals_deln, se_deln = get_DELN_lfcs(
         X_data_filtered, Y_data_filtered, return_standard_error=True)
-    adj_pvals_deln = smm.multipletests(pvals_deln, alpha=0.05, method='fdr_bh')[1]
+    adj_pvals_deln = smm.multipletests(pvals_deln, alpha=0.05, method='bonferroni')[1]
 
     # Method 2: Wilcoxon
-    corr_method="benjamini-hochberg"
+    corr_method="bonferroni"
     lfcs_w, adj_pvals_w = scanpy_sig_test(X_data_filtered, Y_data_filtered, method="wilcoxon", corr_method=corr_method)
     lfcs_scanpy = -lfcs_w.to_numpy()
 

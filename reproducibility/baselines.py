@@ -8,7 +8,10 @@ from lntest import get_LN_lfcs
 import matplotlib.pyplot as plt
 
 
-def scanpy_sig_test(X, Y, method='t-test', normalization='CP10K', corr_method="benjamini-hochberg"):
+def scanpy_sig_test(X, Y, method='t-test', normalization='CP10K', corr_method="bonferroni", return_raw=False,
+                    tie_correct=True):
+    """LFCs and corrected p-values per gene, in gene order; the uncorrected p-values too if return_raw.
+    Bonferroni and a tie-corrected Wilcoxon, Seurat's defaults; tie_correct is read by the Wilcoxon only."""
     nx = X.shape[0]
     ny = Y.shape[0]
     n_genes = Y.shape[1]
@@ -45,8 +48,8 @@ def scanpy_sig_test(X, Y, method='t-test', normalization='CP10K', corr_method="b
     sc.pp.log1p(adata)
 
     # Run Differential Expression Analysis using Scanpy's t-test
-    #corr_method = "bonferroni"  # use Bonferroni to match output of Seurat
-    sc.tl.rank_genes_groups(adata, groupby="group", method=method, reference="X", corr_method=corr_method)
+    sc.tl.rank_genes_groups(adata, groupby="group", method=method, reference="X", corr_method=corr_method,
+                            tie_correct=tie_correct)
 
     # Extract DE Results
     de_results = pd.DataFrame({
@@ -58,6 +61,9 @@ def scanpy_sig_test(X, Y, method='t-test', normalization='CP10K', corr_method="b
     de_results["gene"] = [int(gene.replace("Gene", "")) for gene in de_results["gene"]]
     gene_idx_sorted = np.argsort(de_results["gene"])
 
+    if return_raw:
+        return (de_results["log2_fc"][gene_idx_sorted], de_results["p_adj"][gene_idx_sorted],
+                de_results["p_value"][gene_idx_sorted])
     return de_results["log2_fc"][gene_idx_sorted], de_results["p_adj"][gene_idx_sorted]
 
 
@@ -156,7 +162,7 @@ if __name__ == '__main__':
 
 
     DELN_lfcs, DELN_p_vals = get_LN_lfcs(Y, X, test='t', normalize=True, normalization='CP10K')
-    DELN_adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='fdr_bh')[1]
+    DELN_adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='bonferroni')[1]
     _, ax = plt.subplots(1, 2, figsize=(20, 10))
     ax[0].scatter(DELN_lfcs, -np.log10(DELN_adj_pvals), label=r'$S_\text{LN}$')
     # ax[0].scatter(true_lfcs, -np.log10(DELN_adj_pvals), label='True LFC vs DELN adj $p$')

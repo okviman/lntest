@@ -2,8 +2,8 @@
 
 Rebuilds RECOMB Fig 2b, which was a hand composite of a matplotlib overlay and three QuPath renders
 of unseeded splits, as two figures: capsule_overview.pdf and capsule_split_illustration.pdf. The split
-is spot_split's: per capsule, n_A ~ Binomial(n_spots, p) spots chosen at random go to group A, drawn
-in blue; the rest are group B, in orange -- the two groups' colours in theory/log1p_toy.py.
+is spot_split's: per capsule, n_A ~ Binomial(n_spots, p) spots chosen at random go to group A, the rest
+to group B. A is drawn in blue and B in orange, matplotlib's first two colours.
 
     python -m kidney.capsule_figure      # from reproducibility/
 
@@ -13,6 +13,7 @@ Needs kidney/data/ from `python -m kidney.preprocess` and the full-resolution H&
 
 import argparse
 import json
+from dataclasses import dataclass
 
 import anndata as ad
 import matplotlib.pyplot as plt
@@ -33,7 +34,7 @@ DATA = data_dir(__file__)
 SPLIT_P = (0.5, 0.3, 0.1)
 OUTLINE = '#ffd400'   # capsule outlines on the overview
 BOUNDS = '#f2f2f2'    # a capsule's outer bounds in the close-ups
-GROUPS = {'A': '#1f77b4', 'B': '#ff7f0e'}  # tab10 blue and orange, as X and Y in theory/log1p_toy.py
+GROUPS = {'A': '#1f77b4', 'B': '#ff7f0e'}  # tab10 blue and orange
 FILL = 0.45           # the groups' opacity over the H&E
 BAND = 2.9            # overview width / height, as in the published strip
 
@@ -99,20 +100,29 @@ def densest_band(centres, width, height):
     return ys[int(np.argmax(counts))]
 
 
-def main(capsule, seed):
-    spots, sf = load()
-    mpp = sf['microns_per_pixel']
-    half = sf['bin_size_um'] / mpp / 2
-    outlines = capsule_outlines(spots, half)
+@dataclass
+class Section:
+    sf: dict           # the 2 um bins' scale factors
+    half: float        # half a 2 um spot, in full-resolution pixels
+    outlines: dict     # shape_id -> capsule outline, in full-resolution pixels
+    capsule: float     # the capsule of the close-ups
+    spots: np.ndarray  # its spots' centres, in full-resolution pixels
 
-    if capsule is None:  # the capsule with the median number of spots
+
+def section(capsule=None):
+    """The capsules' outlines, and the close-up capsule (default the one with the median number of spots)."""
+    spots, sf = load()
+    half = sf['bin_size_um'] / sf['microns_per_pixel'] / 2
+    outlines = capsule_outlines(spots, half)
+    if capsule is None:
         sizes = {sid: np.sum(spots[:, 0] == sid) for sid in outlines}
         capsule = min(sizes, key=lambda s: abs(sizes[s] - np.median(list(sizes.values()))))
-    mine = spots[spots[:, 0] == capsule, 1:3]
+    return Section(sf, half, outlines, capsule, spots[spots[:, 0] == capsule, 1:3])
 
-    fig, ax = plt.subplots(figsize=(7.2, 7.2 / BAND), layout='constrained')
 
-    # Overview: the hires image, cropped to the band of the section with the most capsules
+def draw_overview(ax, sec):
+    """The hires H&E, cropped to the band of the section with the most capsules, every capsule outlined."""
+    sf, outlines = sec.sf, sec.outlines
     hires = imread(require_input(DATA / 'spatial/tissue_hires_image.png', what='the hires H&E',
                                  source='python -m fetch_data --arm kidney'))
     s = sf['tissue_hires_scalef']
@@ -126,43 +136,64 @@ def main(capsule, seed):
     for geom in outlines.values():
         draw_outline(ax, geom, s, color=OUTLINE, lw=0.6)
     # the capsule of the close-ups, framed so it can be found at print size
-    bx0, by0, bx1, by1 = (v * s for v in outlines[capsule].bounds)
+    bx0, by0, bx1, by1 = (v * s for v in outlines[sec.capsule].bounds)
     frame = 0.6 * max(bx1 - bx0, by1 - by0)
     ax.add_patch(Rectangle((bx0 - frame, by0 - frame), bx1 - bx0 + 2 * frame, by1 - by0 + 2 * frame,
                            fill=False, edgecolor='black', lw=0.8))
     ax.set_xlim(c0, c1)
     ax.set_ylim(r1, r0)
     ax.set_axis_off()
-    scale_bar(ax, 500, s / mpp, '500 µm')
-    save(fig, 'capsule_overview')
+    scale_bar(ax, 500, s / sf['microns_per_pixel'], '500 µm')
 
-    # Close-ups: one capsule on the full-resolution H&E, group A in yellow
-    g = outlines[capsule]
-    bx0, by0, bx1, by1 = g.bounds
+
+def capsule_crop(sec):
+    """The close-up capsule on the full-resolution H&E, with a margin, and the crop's box in pixels."""
+    bx0, by0, bx1, by1 = sec.outlines[sec.capsule].bounds
     pad = 0.12 * max(bx1 - bx0, by1 - by0)
-    cx0, cy0, cx1, cy1 = (int(v) for v in (bx0 - pad, by0 - pad, bx1 + pad, by1 + pad))
+    box = tuple(int(v) for v in (bx0 - pad, by0 - pad, bx1 + pad, by1 + pad))
     tif = require_input(DATA / 'Visium_HD_Human_Kidney_FFPE_tissue_image.tif', what='the full-resolution H&E',
                         source='python -m fetch_data --arm kidney')
-    crop = read_crop(tif, cx0, cy0, cx1, cy1)
-    fig, axes = plt.subplots(1, len(SPLIT_P), figsize=(7.2, 2.6), layout='constrained')
+    return read_crop(tif, *box), box
+
+
+def draw_splits(axes, sec, crop, box, seed):
+    """One random split of the capsule's spots per axes, at SPLIT_P."""
+    cx0, cy0, cx1, cy1 = box
     rng = np.random.default_rng(seed)
+    half, mine = sec.half, sec.spots
     for ax, p in zip(axes, SPLIT_P):
         in_a = np.zeros(len(mine), dtype=bool)
         in_a[rng.choice(len(mine), rng.binomial(len(mine), p), replace=False)] = True
         ax.imshow(crop, extent=(0, cx1 - cx0, cy1 - cy0, 0), interpolation='antialiased')
-        for group, members in (('A', in_a), ('B', ~in_a)):
+        for members, color in zip((in_a, ~in_a), GROUPS.values()):
             squares = [np.array([[x - half, y - half], [x + half, y - half], [x + half, y + half], [x - half, y + half]])
                        for x, y in mine[members] - [cx0, cy0]]
             # filled, no edges: neighbouring squares share borders, so the group drawn last would own them all
-            ax.add_collection(PolyCollection(squares, facecolors=to_rgba(GROUPS[group], FILL), edgecolors='none',
+            ax.add_collection(PolyCollection(squares, facecolors=to_rgba(color, FILL), edgecolors='none',
                                              rasterized=True))  # vector squares leave seams in PDF viewers
-        draw_outline(ax, shapely.affinity.translate(g, -cx0, -cy0), 1, color=BOUNDS, lw=0.8)
+        draw_outline(ax, shapely.affinity.translate(sec.outlines[sec.capsule], -cx0, -cy0), 1, color=BOUNDS, lw=0.8)
         ax.set_title(rf'$p_\mathrm{{split}}$ = {p:g}')
         ax.set_axis_off()
-    scale_bar(axes[0], 50, 1 / mpp, '50 µm')
-    fig.legend([Patch(facecolor=to_rgba(c, FILL), edgecolor='none') for c in GROUPS.values()],
-               [f'Group {k}' for k in GROUPS], loc='outside right upper')
-    save(fig, 'capsule_split_illustration', f' (capsule {capsule:g}, {len(mine)} spots)')
+    scale_bar(axes[0], 50, 1 / sec.sf['microns_per_pixel'], '50 µm')
+
+
+def split_legend(fig, **kw):
+    return fig.legend([Patch(facecolor=to_rgba(c, FILL), edgecolor='none') for c in GROUPS.values()],
+                      [f'Group {k}' for k in GROUPS], **kw)
+
+
+def main(capsule, seed):
+    sec = section(capsule)
+
+    fig, ax = plt.subplots(figsize=(7.2, 7.2 / BAND), layout='constrained')
+    draw_overview(ax, sec)
+    save(fig, 'capsule_overview')
+
+    crop, box = capsule_crop(sec)
+    fig, axes = plt.subplots(1, len(SPLIT_P), figsize=(7.2, 2.6), layout='constrained')
+    draw_splits(axes, sec, crop, box, seed)
+    split_legend(fig, loc='outside right upper')
+    save(fig, 'capsule_split_illustration', f' (capsule {sec.capsule:g}, {len(sec.spots)} spots)')
 
 
 def save(fig, stem, note=''):

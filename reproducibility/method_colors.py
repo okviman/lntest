@@ -15,6 +15,7 @@ WILCOXON = '#17becf'      # tab10 cyan
 MAST = '#9467bd'          # tab10 purple: tab10 orange is indistinguishable from the green under protanopia
 LOG1P_ACTUAL = '#c49c94'  # tab20 light brown: the t-test's LFC recomputed on the log1p scale
 SEURAT_LOG1P = '#5b3831'  # tab10 brown darkened: Seurat's log1p t-test, beside scanpy's in the CITE-seq figures
+WILCOXON_UNTIED = '#9edae5'  # tab20 light cyan: Wilcoxon without tie correction, scanpy's current default, an ED check
 
 # Box-plot medians: a plain thin line, as in the default style.
 MEDIANPROPS = {'color': 'black', 'linewidth': 1.0}
@@ -29,6 +30,7 @@ METHODS = [
                                                     'log1p t-test (actual lfc)']),
     (r'Seurat log1p $t$-test', SEURAT_LOG1P, ['seurat', 'seurat_lfc', 'seurat log1p t-test']),
     ('Wilcoxon', WILCOXON, ['wilcoxon', 'scanpy wilcoxon', 'scanpy wilcoxon (log1p)']),
+    ('Wilcoxon (no tie correction)', WILCOXON_UNTIED, ['wilcoxon_untied', 'wilcoxon (no tie correction)']),
     ('MAST', MAST, ['mast']),
 ]
 

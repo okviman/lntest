@@ -59,7 +59,7 @@ def run_ln_de(
     groups=None,
     reference="rest",
     sparse=True,
-    corr_method="benjamini-hochberg",
+    corr_method="bonferroni",
     **kwargs,
 ):
     """
@@ -87,7 +87,7 @@ def run_ttest_de(
     use_raw=False,
     groups=None,
     reference="rest",
-    corr_method="benjamini-hochberg",
+    corr_method="bonferroni",
     **kwargs,
 ):
     """Run Scanpy t-test on layer (default log1p_norm)."""
@@ -114,16 +114,18 @@ def run_wilcoxon_de(
     use_raw=False,
     groups=None,
     reference="rest",
-    corr_method="benjamini-hochberg",
+    corr_method="bonferroni",
+    tie_correct=True,
     **kwargs,
 ):
-    """Run Scanpy wilcoxon on layer (default log1p_norm)."""
+    """Run Scanpy wilcoxon on layer (default log1p_norm), tie-corrected as Seurat's."""
     _groups = "all" if groups is None else groups
     sc.tl.rank_genes_groups(
         adata,
         groupby=groupby,
         method="wilcoxon",
         corr_method=corr_method,
+        tie_correct=tie_correct,
         key_added=key_added,
         layer=layer,
         use_raw=use_raw,
@@ -208,7 +210,7 @@ def run_mast_de(
             by = "primerid"
         )
         colnames(fcHurdle) <- c("names", "pvals", "logfoldchanges")
-        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "BH")
+        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "bonferroni")
         fcHurdle$scores <- -log10(fcHurdle$pvals + 1e-300) * sign(fcHurdle$logfoldchanges)
         mast_result <- fcHurdle
         rm(sca, zlmCond, summaryCond, summaryDt, fcHurdle)
@@ -283,7 +285,7 @@ def run_mast_de(
             by = "primerid"
         )
         colnames(fcHurdle) <- c("names", "pvals", "logfoldchanges")
-        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "BH")
+        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "bonferroni")
         fcHurdle$scores <- -log10(fcHurdle$pvals + 1e-300) * sign(fcHurdle$logfoldchanges)
         mast_result <- fcHurdle
         rm(sca, zlmCond, summaryCond, summaryDt, fcHurdle)

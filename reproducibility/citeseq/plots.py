@@ -30,22 +30,32 @@ def save(fig, stem, verbose=True):
         print(f'wrote {out}')
 
 
-def gating():
-    """CLR density of each gating marker, one fill per GMM gate."""
+def gating_subsets():
+    """Each gating marker with the cells it is gated on: CD3 and CD4 on all cells, CD45RA within CD3+ CD4++."""
     df = pd.read_csv(require_input(RESULTS / 'adt_gating.csv',
                                    what='CLR values and GMM gates of the PBMC10k ADTs',
                                    source='cd citeseq/R && Rscript pbmc10k_process.R'))
     cd4_t = df[(df.CD3_cluster == '+') & (df.CD4_cluster == '++')]  # CD45RA is gated within these
-    for marker, sub in (('CD3', df), ('CD4', df), ('CD45RA', cd4_t)):
+    return (('CD3', df), ('CD4', df), ('CD45RA', cd4_t))
+
+
+def draw_gating(ax, marker, sub):
+    """CLR density of one gating marker, one fill per GMM gate."""
+    grid = np.linspace(sub[marker].min(), sub[marker].max(), 400)
+    for gate in [g for g in GATE_SHADES if g in set(sub[f'{marker}_cluster'])]:
+        x = sub.loc[sub[f'{marker}_cluster'] == gate, marker]
+        ax.fill_between(grid, gaussian_kde(x, bw_method='silverman')(grid), color=GATE_SHADES[gate],
+                        alpha=0.7, lw=0, label=f"{marker}{gate.replace('-', '−')}")
+    ax.set_xlabel(f'{marker} (CLR)')
+    ax.set_ylabel('Density')
+    ax.set_title(f'{marker} CLR distribution with GMM clustering')
+
+
+def gating():
+    """CLR density of each gating marker, one fill per GMM gate."""
+    for marker, sub in gating_subsets():
         fig, ax = plt.subplots(figsize=plot_style.figsize())
-        grid = np.linspace(sub[marker].min(), sub[marker].max(), 400)
-        for gate in [g for g in GATE_SHADES if g in set(sub[f'{marker}_cluster'])]:
-            x = sub.loc[sub[f'{marker}_cluster'] == gate, marker]
-            ax.fill_between(grid, gaussian_kde(x, bw_method='silverman')(grid), color=GATE_SHADES[gate],
-                            alpha=0.7, lw=0, label=f"{marker}{gate.replace('-', '−')}")
-        ax.set_xlabel(f'{marker} (CLR)')
-        ax.set_ylabel('Density')
-        ax.set_title(f'{marker} CLR distribution with GMM clustering')
+        draw_gating(ax, marker, sub)
         fig.tight_layout()
         plot_style.legend_outside(fig)
         save(fig, f'gating_{marker.lower()}')
@@ -56,13 +66,11 @@ def annotate_r2(ax, true_lfc, est):
     true_lfc, est = np.asarray(true_lfc), np.asarray(est)
     ok = np.isfinite(true_lfc) & np.isfinite(est)
     r = np.corrcoef(true_lfc[ok], est[ok])[0, 1]
-    ax.text(0.14, 0.84, f'$R^2$ = {r ** 2:.3f}', transform=ax.transAxes, ha='left', va='top',
-            fontsize=plot_style.TEXT)
+    ax.text(0.14, 0.84, f'$R^2$ = {r ** 2:.3f}', transform=ax.transAxes, ha='left', va='top')  # the figure's text size
 
 
-def scatter_panels(true_lfc, panels, stem, error=False, verbose=True):
-    """Estimated LFC (or its error) against the true LFC, one panel per estimator."""
-    fig, axes = plt.subplots(1, len(panels), figsize=plot_style.figsize(len(panels)), sharex=True, sharey=True)
+def draw_scatter(axes, true_lfc, panels, error=False):
+    """Estimated LFC (or its error) against the true LFC, one axes per estimator."""
     for ax, (title, color, est) in zip(axes, panels):
         ax.scatter(true_lfc, true_lfc - est if error else est, s=2, color=color, alpha=0.5, lw=0)
         if error:
@@ -74,8 +82,25 @@ def scatter_panels(true_lfc, panels, stem, error=False, verbose=True):
         ax.set_title(title)
         ax.set_xlabel('True LFC')
     axes[0].set_ylabel('Bias' if error else 'Estimated LFC')
+
+
+def scatter_panels(true_lfc, panels, stem, error=False, verbose=True):
+    """Estimated LFC (or its error) against the true LFC, one panel per estimator."""
+    fig, axes = plt.subplots(1, len(panels), figsize=plot_style.figsize(len(panels)), sharex=True, sharey=True)
+    draw_scatter(axes, true_lfc, panels, error)
     fig.tight_layout()
     save(fig, stem, verbose)
+
+
+def all_methods(res, seurat):
+    """The true LFCs of the planted genes Seurat also tested, and LN's, Scanpy's and Seurat's estimates of them."""
+    merged = res.rename_axis('gene_names').reset_index().rename(columns={'replicate': 'rep'}).merge(
+        seurat[['gene_names', 'seurat_lfc', 'rep']], on=['gene_names', 'rep'])
+    merged = merged[merged.true_lfc != 0]
+    panels = [(method_label('LN'), method_color('LN'), merged.ln_lfc),
+              (SCANPY_LOG1P, method_color('t-test'), merged.scanpy_lfc),
+              (method_label('seurat'), method_color('seurat'), merged.seurat_lfc)]
+    return merged.true_lfc, panels
 
 
 def lfc():
@@ -104,14 +129,9 @@ def lfc():
     fig.tight_layout()
     save(fig, 'lfc_vs_true_seurat')
 
-    merged = res.rename_axis('gene_names').reset_index().rename(columns={'replicate': 'rep'}).merge(
-        seurat[['gene_names', 'seurat_lfc', 'rep']], on=['gene_names', 'rep'])
-    merged = merged[merged.true_lfc != 0]
-    panels = [(method_label('LN'), method_color('LN'), merged.ln_lfc),
-              (SCANPY_LOG1P, method_color('t-test'), merged.scanpy_lfc),
-              (method_label('seurat'), method_color('seurat'), merged.seurat_lfc)]
-    scatter_panels(merged.true_lfc, panels, 'lfc_vs_true_all_methods')
-    scatter_panels(merged.true_lfc, panels, 'lfc_error_all_methods', error=True)
+    true_lfc, panels = all_methods(res, seurat)
+    scatter_panels(true_lfc, panels, 'lfc_vs_true_all_methods')
+    scatter_panels(true_lfc, panels, 'lfc_error_all_methods', error=True)
 
 
 def ranking_curve(is_de, adj_p):
@@ -163,9 +183,8 @@ def metrics():
     save(fig, 'degs_metrics')
 
 
-def summary():
-    """The kidney with-DEG summary's panels for this experiment's single, balanced condition:
-    TPR and FPR at BH 0.05, PR-AUC, and the mean PR curves, over the replicates."""
+def summary_data():
+    """Per replicate and method: TPR and FPR at Bonferroni 0.05 and PR-AUC; and each method's PR curves on a recall grid."""
     res = pd.read_csv(require_input(RESULTS / 'CITE_seq_results.csv', what='per-gene results of every replicate',
                                     source='python -m citeseq.exp'), index_col=0)
     columns = {'LN': 'ln_adj_pvalue', 't-test': 't_adj_pvalue', 'Wilcoxon': 'w_adj_pvalue'}
@@ -180,10 +199,12 @@ def summary():
             precision, recall, area = ranking_curve(is_de, adj_p)
             curves[m].append(np.interp(grid, recall, precision, left=precision[0], right=precision[-1]))
             rows.append({'method': m, 'TPR': called[is_de].mean(), 'FPR': called[~is_de].mean(), 'PR-AUC': area})
-    df = pd.DataFrame(rows)
+    return pd.DataFrame(rows), curves, grid, methods
 
+
+def draw_summary(axes, df, curves, grid, methods):
+    """The summary's four panels into a 2 x 2 array of axes; returns the method key."""
     rng = np.random.default_rng(0)
-    fig, axes = plt.subplots(2, 2, figsize=plot_style.figsize(2, 2))
     zero = plot_style.zero_row(df['FPR'], np.zeros(len(df)))
     for ax, metric in zip(axes.flat[:3], ['TPR', 'FPR', 'PR-AUC']):
         for k, m in enumerate(methods):
@@ -207,9 +228,17 @@ def summary():
     ax.set_ylim(0, 1)
     ax.set_xlabel('Recall')
     ax.set_ylabel('Precision')
+    return [Patch(facecolor=method_color(m)) for m in methods], [method_label(m) for m in methods]
+
+
+def summary():
+    """The kidney with-DEG summary's panels for this experiment's single, balanced condition:
+    TPR and FPR at Bonferroni 0.05, PR-AUC, and the mean PR curves, over the replicates."""
+    df, curves, grid, methods = summary_data()
+    fig, axes = plt.subplots(2, 2, figsize=plot_style.figsize(2, 2))
+    key = draw_summary(axes, df, curves, grid, methods)
     fig.tight_layout()
-    plot_style.legend_outside(fig, [Patch(facecolor=method_color(m)) for m in methods],
-                              [method_label(m) for m in methods])
+    plot_style.legend_outside(fig, *key)
     save(fig, 'degs_summary')
     return df
 
