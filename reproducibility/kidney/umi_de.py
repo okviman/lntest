@@ -11,119 +11,18 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 import pandas as pd
 
-from paths import data_dir, require_input
+from paths import data_dir, fig_name, require_input, results_dir
+import plot_style
+from method_colors import method_color, method_draw_order, method_label, method_order
 
 # Run from reproducibility/ as `python -m kidney.umi_de`, which puts that
 # directory on sys.path -- no path manipulation needed.
 from lntest import get_LN_lfcs as get_DELN_lfcs
 from baselines import scanpy_sig_test
-
-
-def de_test_single(X, Y, selected_genes, true_signs):
-    """Run DE test on X and Y, return TP, FP, FN, TN counts and rates for all methods."""
-    n_genes = X.shape[-1]
-
-    idx_X = set(np.arange(n_genes)[X.sum(0) == 0])
-    idx_Y = set(np.arange(n_genes)[Y.sum(0) == 0])
-    union_unexpressed_gene_set = idx_X.union(idx_Y)
-    cols_to_remove = np.array(list(union_unexpressed_gene_set))
-    mask = np.ones(n_genes, dtype=bool)
-    mask[cols_to_remove] = False
-    X = X[:, mask].copy()
-    Y = Y[:, mask].copy()
-
-    # Update selected_genes indices after removing unexpressed genes
-    # Map original gene indices to new indices
-    original_to_new = {}
-    new_idx = 0
-    for orig_idx in range(n_genes):
-        if mask[orig_idx]:
-            original_to_new[orig_idx] = new_idx
-            new_idx += 1
-    
-    selected_genes_filtered = set([original_to_new[g] for g in selected_genes if g in original_to_new])
-    true_signs_filtered = {original_to_new[g]: true_signs[g] for g in selected_genes if g in original_to_new}
-
-    n_genes_filtered = X.shape[-1]
-    n_selected = len(selected_genes_filtered)
-    n_not_selected = n_genes_filtered - n_selected
-    results = {}
-
-    for method in ["DELN", "t-test", 'wilcoxon']:
-        if method == "DELN":
-            method_key = "LN_test"  # Rename DELN to LN_test in output
-        else:
-            method_key = "Scanpy " + method
-        if method == "DELN":
-            lfcs, DELN_p_vals = get_DELN_lfcs(Y, X, test='t')
-            adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='bonferroni')[1]
-        else:
-            lfcs, adj_pvals = scanpy_sig_test(X, Y, method=method)
-            # Convert pandas Series to numpy arrays if needed
-            if hasattr(adj_pvals, 'values'):
-                adj_pvals = adj_pvals.values
-            if hasattr(lfcs, 'values'):
-                lfcs = lfcs.values
-        
-        # Convert to numpy array and handle NaN values
-        adj_pvals = np.asarray(adj_pvals).flatten()
-        lfcs = np.asarray(lfcs).flatten()
-        
-        # Ensure arrays have the correct length
-        if len(adj_pvals) != n_genes_filtered or len(lfcs) != n_genes_filtered:
-            raise ValueError(f"Array length mismatch: adj_pvals={len(adj_pvals)}, lfcs={len(lfcs)}, expected={n_genes_filtered}")
-        
-        # Find significant genes (adj_pval < 0.05, treating NaN as not significant)
-        # NaN < 0.05 evaluates to False, which is correct
-        significant_mask = (adj_pvals < 0.05) & (~np.isnan(adj_pvals))
-        
-        # Create boolean arrays for selected genes
-        selected_mask = np.zeros(n_genes_filtered, dtype=bool)
-        selected_mask[list(selected_genes_filtered)] = True
-        
-        # True Positives: significant AND in selected_genes
-        tp = np.sum(significant_mask & selected_mask)
-        
-        # False Positives: significant AND NOT in selected_genes
-        fp = np.sum(significant_mask & (~selected_mask))
-        
-        # False Negatives: NOT significant AND in selected_genes
-        fn = n_selected - tp
-        
-        # True Negatives: NOT significant AND NOT in selected_genes
-        tn = n_not_selected - fp
-        
-        # Compute rates as ratios
-        # TPR (True Positive Rate / Sensitivity) = TP / (TP + FN) = TP / n_selected
-        tpr = tp / n_selected if n_selected > 0 else 0.0
-        tpr = np.clip(tpr, 0.0, 1.0)  # Ensure in [0, 1]
-        
-        # FPR (False Positive Rate) = FP / (FP + TN) = FP / n_not_selected
-        fpr = fp / n_not_selected if n_not_selected > 0 else 0.0
-        fpr = np.clip(fpr, 0.0, 1.0)  # Ensure in [0, 1]
-        
-        # FNR (False Negative Rate) = FN / (TP + FN) = FN / n_selected
-        fnr = fn / n_selected if n_selected > 0 else 0.0
-        fnr = np.clip(fnr, 0.0, 1.0)  # Ensure in [0, 1]
-        
-        # TNR (True Negative Rate / Specificity) = TN / (FP + TN) = TN / n_not_selected
-        tnr = tn / n_not_selected if n_not_selected > 0 else 0.0
-        tnr = np.clip(tnr, 0.0, 1.0)  # Ensure in [0, 1]
-        
-        results[method_key] = {
-            "tp": tp, 
-            "fp": fp, 
-            "fn": fn,
-            "tn": tn,
-            "n_selected": n_selected,
-            "n_total": n_genes_filtered,
-            "tpr": tpr,
-            "fpr": fpr,
-            "fnr": fnr,
-            "tnr": tnr
-        }
-    
-    return results
+# spot_split's DE metrics, so the two kidney arms report the same quantities, PR curves included
+from kidney.spot_split import (RECALL_GRID, de_test_single, interpolate_precision, save_pr_curve_data,
+                               save_results_de, summarise_de)
+plot_style.use()
 
 
 def run_single_iteration(args):
@@ -180,7 +79,13 @@ def run_single_iteration(args):
     Y = umis_modified[library_sizes_modified < median_libsize_modified]
     
     # Run the test
-    return de_test_single(X, Y, selected_genes, true_signs)
+    results = de_test_single(X, Y, selected_genes, true_signs)
+    # Keep each replicate's PR curve on the common recall grid only; full-length curves for thousands of
+    # replicates would not fit in memory, and summarise_de interpolates onto this grid anyway.
+    for metrics in results.values():
+        metrics["precision_curve"] = interpolate_precision(metrics["precision_curve"], metrics["recall_curve"])
+        metrics["recall_curve"] = RECALL_GRID
+    return results
 
 
 def run_tests_for_p(p, q, lfc, n_cells_remove, umis_base, library_sizes_base, n_reps, n_jobs):
@@ -193,69 +98,15 @@ def run_tests_for_p(p, q, lfc, n_cells_remove, umis_base, library_sizes_base, n_
     with Pool(processes=n_jobs) as pool:
         results_list = pool.map(run_single_iteration, args_list)
     
-    # Aggregate results
-    aggregated = defaultdict(lambda: {"tpr": [], "fpr": [], "fnr": [], "tnr": []})
-    for result in results_list:
-        for method, metrics in result.items():
-            aggregated[method]["tpr"].append(metrics["tpr"])
-            aggregated[method]["fpr"].append(metrics["fpr"])
-            aggregated[method]["fnr"].append(metrics["fnr"])
-            aggregated[method]["tnr"].append(metrics["tnr"])
-    
-    # Compute means and stds of the ratios
-    summary = {}
-    for method, metrics in aggregated.items():
-        tpr_values = np.array(metrics["tpr"])
-        fpr_values = np.array(metrics["fpr"])
-        fnr_values = np.array(metrics["fnr"])
-        tnr_values = np.array(metrics["tnr"])
-        
-        summary[method] = {
-            "tpr_mean": np.mean(tpr_values),
-            "tpr_std": np.std(tpr_values),
-            "fpr_mean": np.mean(fpr_values),
-            "fpr_std": np.std(fpr_values),
-            "fnr_mean": np.mean(fnr_values),
-            "fnr_std": np.std(fnr_values),
-            "tnr_mean": np.mean(tnr_values),
-            "tnr_std": np.std(tnr_values),
-        }
-    
-    return summary
-
-
-def save_results(p_values, results_by_p, output_file, q, lfc):
-    """Save DE test results to a CSV file."""
-    # Prepare data for DataFrame
-    rows = []
-    for p in p_values:
-        for method, metrics in results_by_p[p].items():
-            rows.append({
-                'p': p,
-                'q': q,
-                'lfc': lfc,
-                'method': method,
-                'tpr_mean': metrics['tpr_mean'],
-                'tpr_std': metrics['tpr_std'],
-                'fpr_mean': metrics['fpr_mean'],
-                'fpr_std': metrics['fpr_std'],
-                'fnr_mean': metrics['fnr_mean'],
-                'fnr_std': metrics['fnr_std'],
-                'tnr_mean': metrics['tnr_mean'],
-                'tnr_std': metrics['tnr_std']
-            })
-    
-    df = pd.DataFrame(rows)
-    df.to_csv(output_file, index=False)
-    print(f"Results saved to {output_file}")
+    return summarise_de(results_list)
 
 
 def plot_results(p_values, results_by_p, output_file, q, lfc):
     """Plot TPR, FPR, FNR, and TNR vs p for all methods."""
-    methods = list(results_by_p[p_values[0]].keys())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(methods)))
+    methods = method_draw_order(results_by_p[p_values[0]])
+    colors = [method_color(m) for m in methods]
     
-    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    fig, axes = plt.subplots(2, 2, figsize=plot_style.figsize(2, 2))
     
     # Plot TPR
     for idx, method in enumerate(methods):
@@ -263,14 +114,11 @@ def plot_results(p_values, results_by_p, output_file, q, lfc):
         tpr_stds = [results_by_p[p][method]["tpr_std"] for p in p_values]
         
         axes[0, 0].errorbar(p_values, tpr_means, yerr=tpr_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[0, 0].set_xlabel(r'Downsampling ratio $p$', fontsize=12)
-    axes[0, 0].set_ylabel('True Positive Rate (TPR)', fontsize=12)
-    axes[0, 0].set_title('TPR vs Downsample Ratio', fontsize=14, fontweight='bold')
-    axes[0, 0].grid(True, alpha=0.3)
-    axes[0, 0].legend(loc='best', fontsize=10)
+    axes[0, 0].set_xlabel(r'$p_\mathrm{sample}$')
+    axes[0, 0].set_ylabel('TPR')
     axes[0, 0].set_ylim([0, 1])
     
     # Plot FPR
@@ -279,14 +127,11 @@ def plot_results(p_values, results_by_p, output_file, q, lfc):
         fpr_stds = [results_by_p[p][method]["fpr_std"] for p in p_values]
         
         axes[0, 1].errorbar(p_values, fpr_means, yerr=fpr_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[0, 1].set_xlabel(r'Downsampling ratio $p$', fontsize=12)
-    axes[0, 1].set_ylabel('False Positive Rate (FPR)', fontsize=12)
-    axes[0, 1].set_title('FPR vs Downsample Ratio', fontsize=14, fontweight='bold')
-    axes[0, 1].grid(True, alpha=0.3)
-    axes[0, 1].legend(loc='best', fontsize=10)
+    axes[0, 1].set_xlabel(r'$p_\mathrm{sample}$')
+    axes[0, 1].set_ylabel('FPR')
     axes[0, 1].set_ylim([0, 1])
     
     # Plot FNR
@@ -295,14 +140,11 @@ def plot_results(p_values, results_by_p, output_file, q, lfc):
         fnr_stds = [results_by_p[p][method]["fnr_std"] for p in p_values]
         
         axes[1, 0].errorbar(p_values, fnr_means, yerr=fnr_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[1, 0].set_xlabel(r'Downsampling ratio $p$', fontsize=12)
-    axes[1, 0].set_ylabel('False Negative Rate (FNR)', fontsize=12)
-    axes[1, 0].set_title('FNR vs Downsample Ratio', fontsize=14, fontweight='bold')
-    axes[1, 0].grid(True, alpha=0.3)
-    axes[1, 0].legend(loc='best', fontsize=10)
+    axes[1, 0].set_xlabel(r'$p_\mathrm{sample}$')
+    axes[1, 0].set_ylabel('False Negative Rate (FNR)')
     axes[1, 0].set_ylim([0, 1])
     
     # Plot TNR
@@ -311,17 +153,15 @@ def plot_results(p_values, results_by_p, output_file, q, lfc):
         tnr_stds = [results_by_p[p][method]["tnr_std"] for p in p_values]
         
         axes[1, 1].errorbar(p_values, tnr_means, yerr=tnr_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[1, 1].set_xlabel(r'Downsampling ratio $p$', fontsize=12)
-    axes[1, 1].set_ylabel('True Negative Rate (TNR)', fontsize=12)
-    axes[1, 1].set_title(f'TNR vs Downsample Ratio (q={q}, lfc={lfc})', fontsize=14, fontweight='bold')
-    axes[1, 1].grid(True, alpha=0.3)
-    axes[1, 1].legend(loc='best', fontsize=10)
+    axes[1, 1].set_xlabel(r'$p_\mathrm{sample}$')
+    axes[1, 1].set_ylabel('True Negative Rate (TNR)')
     axes[1, 1].set_ylim([0, 1])
     
     plt.tight_layout()
+    plot_style.legend_outside(fig)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
@@ -345,8 +185,10 @@ if __name__ == '__main__':
                         help='Number of repetitions per p value (default: 100)')
     parser.add_argument('--n_jobs', type=int, default=None,
                         help='Number of parallel jobs (default: all available cores)')
-    parser.add_argument('--output', type=str, default='de_test_plot.png',
-                        help='Output file for the plot (default: de_test_plot.png)')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Seed for the per-repetition seeds (default: 0)')
+    parser.add_argument('--output', type=str, default=str(results_dir(__file__) / fig_name('de_test_plot')),
+                        help='Output file for the plot (default: kidney/results/de_test_plot.pdf)')
     parser.add_argument('--results_file', type=str, default=None,
                         help='Output file for results CSV (default: auto-generated from output name)')
     args = parser.parse_args()
@@ -418,6 +260,8 @@ if __name__ == '__main__':
     # Generate p values
     p_values = np.linspace(p_min, p_max, p_steps)
     
+    np.random.seed(args.seed)
+    
     # Run tests for each p value
     results_by_p = {}
     for i, p in enumerate(p_values):
@@ -431,7 +275,8 @@ if __name__ == '__main__':
                   f"TNR={metrics['tnr_mean']:.4f}±{metrics['tnr_std']:.4f}")
     
     print(f"\nSaving results...")
-    save_results(p_values, results_by_p, results_file, q, lfc)
+    save_results_de(p_values, results_by_p, results_file, q, lfc)
+    save_pr_curve_data(p_values, results_by_p, f"{os.path.splitext(results_file)[0].removesuffix('_results')}_pr_curve_data.json", q, lfc)
     
     print(f"Generating plots...")
     # plot_results(p_values, results_by_p, output_file, q, lfc)

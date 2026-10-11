@@ -11,10 +11,22 @@ library(Seurat)
 # citeseq/data/; everything this chain produces goes to citeseq/results/.
 data_dir <- "../data/"
 results_dir <- "../results/"
+# No figures are drawn in R: citeseq/plots.py draws them from the CSVs this chain writes.
+
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 MIN_CELLS <- 3
-seurat <- Read10X_h5("sc5p_v2_hs_PBMC_10k_filtered_feature_bc_matrix.h5")
+
+# Was a bare filename, so this only worked if you happened to be standing in the
+# directory holding the download. It now reads from citeseq/data/, which is where
+# `python -m fetch_data --arm citeseq` puts it.
+raw_h5 <- paste0(data_dir, "sc5p_v2_hs_PBMC_10k_filtered_feature_bc_matrix.h5")
+if (!file.exists(raw_h5)) {
+  stop(paste0("missing ", raw_h5, "\n",
+              "  what:   the 5' PBMC 10k filtered_feature_bc_matrix, raw input to this arm\n",
+              "  source: run `python -m fetch_data --arm citeseq` from reproducibility/"))
+}
+seurat <- Read10X_h5(raw_h5)
 output_path <- results_dir
 if (!dir.exists(output_path)) {
   dir.create(output_path, recursive = T)
@@ -39,7 +51,9 @@ pbmc10k <- subset(pbmc10k, cells = colnames(pbmc10k)[keep_cells])
 # Identify cell types.
 # Normalize ADT data using CLR.
 pbmc10k <- NormalizeData(pbmc10k, assay = "ADT", normalization.method = "CLR")
-adt_clr_transformed <- t(GetAssayData(pbmc10k, assay = "ADT", slot = "data"))
+# slot= was defunct as of SeuratObject 5.0.0; layer= is the same argument.
+# Lines 39-40 had already been migrated, this one had not.
+adt_clr_transformed <- t(GetAssayData(pbmc10k, assay = "ADT", layer = "data"))
 # Fit Gaussian mixture model to identify CD3+ and CD4++ cells.
 fit_mclust <- function(x, num_clusters) {
   fit <- mclust::Mclust(x, G = num_clusters)
@@ -70,34 +84,9 @@ adt_clr_transformed_dt <- adt_clr_transformed_dt %>%
     CD45RA_cluster = fit_mclust(CD45RA, num_clusters = 2)$label
   )
 
-# Identify CD3+ cells.
-pl <- ggplot(adt_clr_transformed_dt, aes(CD3, fill=CD3_cluster)) + 
-  geom_density() +
-  theme_bw() + 
-  ylab("Density") +
-  ggtitle("CD3 CLR distribution with GMM clustering") + 
-  labs(fill = "CD3")
-ggsave(paste0(results_dir, "CD3_density_plot.pdf"), plot = pl)
-
-pl <- ggplot(adt_clr_transformed_dt, aes(CD4, fill=CD4_cluster)) + 
-  geom_density() +
-  theme_bw() + 
-  ylab("Density") +
-  ggtitle("CD4 CLR distribution with GMM clustering") + 
-  labs(fill = "CD4")
-ggsave(paste0(results_dir, "CD4_density_plot.pdf"), plot = pl)
-
-# Take a subset of CD3+ and CD4++ cells and identify CD45RA- cells.
-adt_clr_transformed_dt %>% 
-  filter(CD3_cluster == "+", CD4_cluster == "++") %>% 
-  ggplot(aes(CD45RA, fill=CD45RA_cluster)) + 
-  geom_density() +
-  theme_bw() + 
-  ylab("Density") +
-  ggtitle("CD45RA CLR distribution with GMM clustering") + 
-  labs(fill = "CD45RA") -> pl
-pl
-ggsave(paste0(results_dir, "CD45RA_density_plot.pdf"), plot = pl)
+# The CLR values and GMM gates, for the three gating figures (citeseq/plots.py).
+fwrite(select(adt_clr_transformed_dt, barcode, CD3, CD4, CD45RA, CD3_cluster, CD4_cluster, CD45RA_cluster),
+       paste0(results_dir, "adt_gating.csv"))
 
 adt_clr_transformed_dt %>% 
   filter(CD3_cluster == "+" & CD4_cluster == "++" & CD45RA_cluster == "-") %>% 

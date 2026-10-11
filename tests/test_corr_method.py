@@ -85,6 +85,17 @@ class TestVocabularyMatchesScanpy:
         two vocabularies from quietly diverging."""
         assert "fdr_bh" not in CORR_METHODS
 
+    def test_default_is_scanpys(self):
+        """Switching ``method=`` must not also switch the correction."""
+        import inspect
+
+        from lntest import rank_genes_groups_ln
+
+        def default(f):
+            return inspect.signature(f).parameters["corr_method"].default
+
+        assert default(rank_genes_groups_ln) == default(sc.tl.rank_genes_groups)
+
 
 class TestReproducesScanpysAdjustment:
     @pytest.mark.parametrize("method", CORR_METHODS)

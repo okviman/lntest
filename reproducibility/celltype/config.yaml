@@ -1,4 +1,28 @@
-adata_path: "./data/pbmcs3k_pre.h5ad"
+# Kang et al. 2018 PBMCs: T cells against B cells, control condition only.
+#
+# These groups are not a preference, they are what the committed reference
+# markers were computed under. results/kang_{B,T}_markers.csv come from
+# kang_markers.ipynb, which keeps `label == "ctrl"`, keeps CD4 T / CD8 T /
+# B cells, and pools the two T populations into one "T cells" group before
+# running pseudobulk edgeR. Scoring this arm's DE against those markers only
+# means anything if it uses the same grouping.
+#
+# This file previously read:
+#     adata_path: "./data/pbmcs3k_pre.h5ad"
+#     celltype_values: ["Naive CD4 T", "CD14 Mono"]
+# which could never run: that file has no cell_type column, and those two
+# strings are the first two keys of clustering/config.yaml's marker dictionary,
+# copied verbatim. See the vault's decision-celltype-groups.
+
+adata_path: "data/kang_2018.h5ad"
 
 celltype_column: "cell_type"
-celltype_values: ["Naive CD4 T", "CD14 Mono"]
+celltype_values: ["T cells", "B cells"]
+
+# Applied before gene filtering, so min_cells is computed on the cells analysed.
+subset:
+  label: "ctrl"
+
+# Applied before the two groups are selected.
+celltype_merge:
+  "T cells": ["CD4 T cells", "CD8 T cells"]

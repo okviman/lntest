@@ -1,4 +1,5 @@
-# Config: 50 replicates, markers from pseudo-bulk PyDESeq2 DE (top 20 = Cluster-3, last 20 = Cluster-1).
+# Config: 50 replicates, scored against the pseudo-bulk PyDESeq2 reference that
+# lymphnode/pseudobulk_reference.py writes to `reference` from these cells at full depth.
 # Other options copied from config_subsampling_test_10rep.yaml.
 # Was an absolute path on Hosein's machine:
 #   /home/hosein.toosi/ovary/podocytes/data/vishd-cluster1-cluster3-2um-with-clusters-subsampled.h5ad
@@ -23,49 +24,6 @@ same_gene_sets_all_p: false
 same_cells_all_p: true
 subsampling_fractions: [0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 n_replicates: 50
-top_genes: 20
 cluster_column: "Cluster"
 cell_id_column: "cell_id"
-markers:
-  "Cluster-1":
-    - "IL7R"
-    - "CD6"
-    - "B2M"
-    - "NLRC5"
-    - "GIMAP7"
-    - "KLF2"
-    - "TMC8"
-    - "TCF7"
-    - "DGKA"
-    - "IL32"
-    - "TXNIP"
-    - "FXYD5"
-    - "CD44"
-    - "CCL19"
-    - "SELL"
-    - "TMSB10"
-    - "TRBC1"
-    - "TRAC"
-    - "CCL21"
-    - "TRBC2"
-  "Cluster-3":
-    - "CLU"
-    - "IGHG1"
-    - "IGKC"
-    - "H1-5"
-    - "CD22"
-    - "CD74"
-    - "MS4A1"
-    - "CD79A"
-    - "MEF2B"
-    - "KLHL6"
-    - "PFN1"
-    - "IRAG2"
-    - "SEL1L3"
-    - "H1-2"
-    - "RFTN1"
-    - "MYBL2"
-    - "TCF3"
-    - "EZR"
-    - "OAZ1"
-    - "POU2AF1"
+reference: "lymphnode/results/pseudobulk_reference.csv"

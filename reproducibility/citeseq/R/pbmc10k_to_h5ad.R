@@ -1,12 +1,9 @@
 rm(list=ls())
-library(anndata)
-library(basilisk)
-library(data.table)
-library(dplyr)
-library(ggplot2)
-library(reticulate)
+# Only these two are used: Seurat for LayerData/as.SingleCellExperiment, and
+# zellkonverter for writeH5AD. This script also loaded anndata, basilisk,
+# data.table, dplyr, ggplot2, reticulate and splatter and touched none of them,
+# which made the arm's R dependencies look far heavier than they are.
 library(Seurat)
-library(splatter)
 library(zellkonverter)
 
 # Paths are relative to this script's directory (citeseq/R/), which is what
@@ -17,13 +14,12 @@ results_dir <- "../results/"
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 
-use_python("/Users/sjun6/opt/anaconda3/envs/nbsr/bin/python")
-
-methods <- c("wilcox", "wilcox_limma", "t", "MAST", "negbinom")
-output_path <- results_dir
-if (!dir.exists(output_path)) {
-  dir.create(output_path, recursive = T)
-}
+# Removed: use_python("/Users/sjun6/opt/anaconda3/envs/nbsr/bin/python"), an
+# absolute path into a co-author's machine. zellkonverter manages its own Python
+# through basilisk, so nothing here needs a interpreter named by hand.
+#
+# Also removed an unused `methods` vector naming five Seurat DE tests; this
+# script converts an object and runs no test.
 
 MIN_READS <- 3
 MIN_CELLS <- 5

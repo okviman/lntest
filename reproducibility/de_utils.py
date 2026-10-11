@@ -59,6 +59,7 @@ def run_ln_de(
     groups=None,
     reference="rest",
     sparse=True,
+    corr_method="bonferroni",
     **kwargs,
 ):
     """
@@ -73,6 +74,7 @@ def run_ln_de(
         groups=groups,
         reference=reference,
         sparse=sparse,
+        corr_method=corr_method,
         **kwargs,
     )
 
@@ -85,6 +87,7 @@ def run_ttest_de(
     use_raw=False,
     groups=None,
     reference="rest",
+    corr_method="bonferroni",
     **kwargs,
 ):
     """Run Scanpy t-test on layer (default log1p_norm)."""
@@ -93,6 +96,7 @@ def run_ttest_de(
         adata,
         groupby=groupby,
         method="t-test",
+        corr_method=corr_method,
         key_added=key_added,
         layer=layer,
         use_raw=use_raw,
@@ -110,14 +114,18 @@ def run_wilcoxon_de(
     use_raw=False,
     groups=None,
     reference="rest",
+    corr_method="bonferroni",
+    tie_correct=True,
     **kwargs,
 ):
-    """Run Scanpy wilcoxon on layer (default log1p_norm)."""
+    """Run Scanpy wilcoxon on layer (default log1p_norm), tie-corrected as Seurat's."""
     _groups = "all" if groups is None else groups
     sc.tl.rank_genes_groups(
         adata,
         groupby=groupby,
         method="wilcoxon",
+        corr_method=corr_method,
+        tie_correct=tie_correct,
         key_added=key_added,
         layer=layer,
         use_raw=use_raw,
@@ -134,9 +142,13 @@ def run_mast_de(
     group_2=None,
     log1p_layer="log1p_norm",
     key_added="mast",
+    cdr=True,
 ):
     """
     Run MAST differential expression via rpy2.
+
+    - cdr: include the cellular detection rate as a covariate (~ group + cngeneson), as MAST's vignette does;
+      False fits ~ group, as Seurat's FindMarkers(test.use="MAST") does by default.
 
     - If group_1 and group_2 are provided: two-group comparison (group_1 vs group_2).
       Writes result to adata.uns[key_added] and returns it.
@@ -148,6 +160,7 @@ def run_mast_de(
     if not _HAS_RPY2:
         raise ImportError("run_mast_de requires rpy2. Install with: pip install rpy2")
     importr("MAST")
+    ro.globalenv["use_cdr"] = ro.BoolVector([cdr])
 
     if log1p_layer not in adata.layers:
         raise ValueError(f"Layer '{log1p_layer}' not found in adata.layers")
@@ -193,7 +206,8 @@ def run_mast_de(
         colData(sca)$group <- factor(colData(sca)$group, levels = c("rest", "target"))
         cdr <- colSums(assay(sca) > 0)
         colData(sca)$cngeneson <- scale(cdr)
-        zlmCond <- zlm(~ group + cngeneson, sca)
+        # every gene detected in every cell (dense synthetic data) leaves the detection rate constant and unscalable
+        zlmCond <- if (use_cdr && sd(cdr) > 0) zlm(~ group + cngeneson, sca) else zlm(~ group, sca)
         summaryCond <- summary(zlmCond, doLRT = "grouptarget")
         summaryDt <- summaryCond$datatable
         fcHurdle <- merge(
@@ -202,7 +216,7 @@ def run_mast_de(
             by = "primerid"
         )
         colnames(fcHurdle) <- c("names", "pvals", "logfoldchanges")
-        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "BH")
+        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "bonferroni")
         fcHurdle$scores <- -log10(fcHurdle$pvals + 1e-300) * sign(fcHurdle$logfoldchanges)
         mast_result <- fcHurdle
         rm(sca, zlmCond, summaryCond, summaryDt, fcHurdle)
@@ -268,7 +282,8 @@ def run_mast_de(
         colData(sca)$group <- factor(colData(sca)$group, levels = c("rest", "target"))
         cdr <- colSums(assay(sca) > 0)
         colData(sca)$cngeneson <- scale(cdr)
-        zlmCond <- zlm(~ group + cngeneson, sca)
+        # every gene detected in every cell (dense synthetic data) leaves the detection rate constant and unscalable
+        zlmCond <- if (use_cdr && sd(cdr) > 0) zlm(~ group + cngeneson, sca) else zlm(~ group, sca)
         summaryCond <- summary(zlmCond, doLRT = "grouptarget")
         summaryDt <- summaryCond$datatable
         fcHurdle <- merge(
@@ -277,7 +292,7 @@ def run_mast_de(
             by = "primerid"
         )
         colnames(fcHurdle) <- c("names", "pvals", "logfoldchanges")
-        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "BH")
+        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "bonferroni")
         fcHurdle$scores <- -log10(fcHurdle$pvals + 1e-300) * sign(fcHurdle$logfoldchanges)
         mast_result <- fcHurdle
         rm(sca, zlmCond, summaryCond, summaryDt, fcHurdle)

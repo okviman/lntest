@@ -5,13 +5,15 @@ import statsmodels.stats.multitest as smm
 import scanpy as sc
 import scipy.sparse as sp
 import argparse
-from multiprocessing import Pool, cpu_count, shared_memory
+from multiprocessing import Pool, cpu_count
 from functools import partial
 import matplotlib.pyplot as plt
 from collections import defaultdict
 import pandas as pd
 
-from paths import data_dir, require_input
+from paths import data_dir, fig_name, require_input, results_dir
+import plot_style
+from method_colors import method_color, method_draw_order, method_label, method_order
 import json
 from sklearn.metrics import average_precision_score, precision_recall_curve, auc
 
@@ -19,6 +21,7 @@ from sklearn.metrics import average_precision_score, precision_recall_curve, auc
 # directory on sys.path -- no path manipulation needed.
 from lntest import get_LN_lfcs as get_DELN_lfcs
 from baselines import get_test_results, scanpy_sig_test
+plot_style.use()
 
 
 def fpr_test_single(X, Y):
@@ -46,19 +49,21 @@ def fpr_test_single(X, Y):
             lfcs, DELN_p_vals = get_DELN_lfcs(Y, X, test='t')
             adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='bonferroni')[1]
             if np.sum(adj_pvals >= 0.05) == n_genes:
-                results[method_key] = {"fpr": 0., "fpr_filtered": 0.}
+                results[method_key] = {"fpr": 0., "fpr_filtered": 0., "n_degs": 0, "n_genes": n_genes}
             else:
                 test_results = get_test_results(adj_pvals, np.zeros(n_genes), verbose=False)
                 fpr_filtered = np.sum(np.abs(lfcs[adj_pvals < 0.05]) > 0.25) / adj_pvals.size
-                results[method_key] = {"fpr": test_results['fpr'], "fpr_filtered": fpr_filtered}
+                results[method_key] = {"fpr": test_results['fpr'], "fpr_filtered": fpr_filtered,
+                                       "n_degs": int(np.sum(adj_pvals < 0.05)), "n_genes": n_genes}
         else:
             lfcs, adj_pvals = scanpy_sig_test(X, Y, method=method)
             if np.sum(adj_pvals >= 0.05) == n_genes:
-                results[method_key] = {"fpr": 0., "fpr_filtered": 0.}
+                results[method_key] = {"fpr": 0., "fpr_filtered": 0., "n_degs": 0, "n_genes": n_genes}
             else:
                 test_results = get_test_results(adj_pvals, np.zeros(n_genes), verbose=False)
                 fpr_filtered = np.sum(np.abs(lfcs[adj_pvals < 0.05]) > 0.25) / adj_pvals.size
-                results[method_key] = {"fpr": test_results['fpr'], "fpr_filtered": fpr_filtered}
+                results[method_key] = {"fpr": test_results['fpr'], "fpr_filtered": fpr_filtered,
+                                       "n_degs": int(np.sum(adj_pvals < 0.05)), "n_genes": n_genes}
     
     return results
 
@@ -285,23 +290,29 @@ def de_test_single(X, Y, selected_genes, true_signs):
     return results
 
 
-def create_groups_from_shape_ids_shared(umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, p, seed=None):
+# The per-spot count matrix, kept sparse: dense it is ~40 GB for 546K spots x 18K genes.
+# Each worker receives it once, through the Pool initializer.
+_UMIS = None
+
+
+def _init_worker(umis):
+    global _UMIS
+    _UMIS = umis
+
+
+def create_groups_from_shape_ids(umis, shape_id_to_indices, unique_shape_ids, p, seed=None):
     """
-    Split spots within each shape_id into two groups A and B using shared memory.
-    
+    Split spots within each shape_id into two groups A and B.
+
     For each shape_id:
     1. Sample n_A from Binomial(n_spots, p)
     2. Randomly select n_A spots for group A, rest for group B
     3. Sum reads for each group to create two cells
-    
+
     Parameters:
     -----------
-    umis_shm_name : str
-        Name of shared memory block for umis array
-    umis_shape : tuple
-        Shape of umis array (n_spots, n_genes)
-    umis_dtype : numpy.dtype
-        Data type of umis array
+    umis : scipy.sparse.csr_matrix
+        Counts, (n_spots, n_genes)
     shape_id_to_indices : dict
         Pre-computed mapping from shape_id to array of spot indices
     unique_shape_ids : array
@@ -320,16 +331,12 @@ def create_groups_from_shape_ids_shared(umis_shm_name, umis_shape, umis_dtype, s
     """
     if seed is not None:
         np.random.seed(seed)
-    
-    # Attach to shared memory
-    existing_shm = shared_memory.SharedMemory(name=umis_shm_name)
-    umis = np.ndarray(umis_shape, dtype=umis_dtype, buffer=existing_shm.buf)
-    
+
     n_shape_ids = len(unique_shape_ids)
     n_genes = umis.shape[1]
-    
-    X = np.zeros((n_shape_ids, n_genes), dtype=umis_dtype)
-    Y = np.zeros((n_shape_ids, n_genes), dtype=umis_dtype)
+
+    X = np.zeros((n_shape_ids, n_genes), dtype=umis.dtype)
+    Y = np.zeros((n_shape_ids, n_genes), dtype=umis.dtype)
     
     for idx, shape_id in enumerate(unique_shape_ids):
         # Get pre-computed spot indices for this shape_id
@@ -351,21 +358,18 @@ def create_groups_from_shape_ids_shared(umis_shm_name, umis_shape, umis_dtype, s
         group_B_indices = shuffled_indices[n_A:]
         
         # Sum reads for each group
-        X[idx, :] = umis[group_A_indices, :].sum(axis=0)
-        Y[idx, :] = umis[group_B_indices, :].sum(axis=0)
-    
-    # Close shared memory connection (but don't unlink - main process handles that)
-    existing_shm.close()
-    
+        X[idx, :] = np.asarray(umis[group_A_indices, :].sum(axis=0)).ravel()
+        Y[idx, :] = np.asarray(umis[group_B_indices, :].sum(axis=0)).ravel()
+
     return X, Y
 
 
 def run_single_iteration_fpr(args):
     """Run a single iteration of the FPR test with given parameters."""
-    p, umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, seed = args
-    
-    # Create groups from shape_ids (uses shared memory, does splitting in worker)
-    X, Y = create_groups_from_shape_ids_shared(umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, p, seed=seed)
+    p, shape_id_to_indices, unique_shape_ids, seed = args
+
+    # Create groups from shape_ids (does splitting in worker)
+    X, Y = create_groups_from_shape_ids(_UMIS, shape_id_to_indices, unique_shape_ids, p, seed=seed)
     
     # Run the test
     return fpr_test_single(X, Y)
@@ -373,13 +377,13 @@ def run_single_iteration_fpr(args):
 
 def run_single_iteration_de(args):
     """Run a single iteration of the DE test with given parameters."""
-    p, q, lfc, umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, seed = args
-    
+    p, q, lfc, shape_id_to_indices, unique_shape_ids, seed = args
+
     # Set random seed for reproducibility within each iteration
     np.random.seed(seed)
-    
-    # Create groups from shape_ids (uses shared memory, does splitting in worker)
-    X, Y = create_groups_from_shape_ids_shared(umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, p, seed=seed)
+
+    # Create groups from shape_ids (does splitting in worker)
+    X, Y = create_groups_from_shape_ids(_UMIS, shape_id_to_indices, unique_shape_ids, p, seed=seed)
     
     # Randomly select genes with probability q
     n_genes = X.shape[1]
@@ -425,22 +429,22 @@ def run_single_iteration_de(args):
     return de_test_single(X_modified, Y_modified, effective_selected_genes, effective_true_signs)
 
 
-def run_tests_for_p_fpr(p, umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs):
+def run_tests_for_p_fpr(p, umis, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs):
     """Run n_reps iterations for a given p value in parallel (FPR mode)."""
     # Create arguments for each iteration - workers do the splitting
     seeds = np.random.randint(0, 2**31, size=n_reps)
-    args_list = [(p, umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, seed) for seed in seeds]
-    
+    args_list = [(p, shape_id_to_indices, unique_shape_ids, seed) for seed in seeds]
+
     # Run in parallel
-    with Pool(processes=n_jobs) as pool:
+    with Pool(processes=n_jobs, initializer=_init_worker, initargs=(umis,)) as pool:
         results_list = pool.map(run_single_iteration_fpr, args_list)
     
     # Aggregate results
-    aggregated = defaultdict(lambda: {"fpr": [], "fpr_filtered": []})
+    aggregated = defaultdict(lambda: {"fpr": [], "fpr_filtered": [], "n_degs": [], "n_genes": []})
     for result in results_list:
         for method, metrics in result.items():
-            aggregated[method]["fpr"].append(metrics["fpr"])
-            aggregated[method]["fpr_filtered"].append(metrics["fpr_filtered"])
+            for key in aggregated[method]:
+                aggregated[method][key].append(metrics[key])
     
     # Compute means and stds (both raw and log10)
     summary = {}
@@ -476,22 +480,43 @@ def run_tests_for_p_fpr(p, umis_shm_name, umis_shape, umis_dtype, shape_id_to_in
             "fpr_filtered_log10_mean": fpr_filtered_log10_mean,
             "fpr_filtered_log10_std": fpr_filtered_log10_std,
             "fpr_values": fpr_values.tolist(),
-            "fpr_filtered_values": fpr_filtered_values.tolist()
+            "fpr_filtered_values": fpr_filtered_values.tolist(),
+            "n_degs_values": metrics["n_degs"],
+            "n_genes_values": metrics["n_genes"],
+            "seeds": seeds.tolist(),
         }
     
     return summary
 
 
-def run_tests_for_p_de(p, q, lfc, umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs):
+def run_tests_for_p_de(p, q, lfc, umis, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs):
     """Run n_reps iterations for a given p value in parallel (DE test mode)."""
     # Create arguments for each iteration - workers do the splitting
     seeds = np.random.randint(0, 2**31, size=n_reps)
-    args_list = [(p, q, lfc, umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, seed) for seed in seeds]
-    
+    args_list = [(p, q, lfc, shape_id_to_indices, unique_shape_ids, seed) for seed in seeds]
+
     # Run in parallel
-    with Pool(processes=n_jobs) as pool:
+    with Pool(processes=n_jobs, initializer=_init_worker, initargs=(umis,)) as pool:
         results_list = pool.map(run_single_iteration_de, args_list)
     
+    return summarise_de(results_list)
+
+
+RECALL_GRID = np.linspace(0, 1, 101)  # the common recall values PR curves are averaged on
+
+
+def interpolate_precision(prec_curve, rec_curve, recall_grid=RECALL_GRID):
+    """One replicate's precision at the common recall values, held constant beyond its ends."""
+    sort_idx = np.argsort(rec_curve)
+    rec_sorted = rec_curve[sort_idx]
+    prec_sorted = prec_curve[sort_idx]
+    return np.interp(recall_grid, rec_sorted, prec_sorted,
+                     left=prec_sorted[0] if len(prec_sorted) > 0 else 1.0,
+                     right=prec_sorted[-1] if len(prec_sorted) > 0 else 0.0)
+
+
+def summarise_de(results_list):
+    """Means and SDs over replicates of de_test_single's metrics, and the mean PR curve."""
     # Aggregate results
     aggregated = defaultdict(lambda: {"tpr": [], "fpr": [], "fnr": [], "tnr": [], "accuracy": [], "precision": [], 
                                       "precision_curve": [], "recall_curve": [], "pr_auc_curve": [], "ap": [], "pr_auc": []})
@@ -525,21 +550,11 @@ def run_tests_for_p_de(p, q, lfc, umis_shm_name, umis_shape, umis_dtype, shape_i
         
         # Aggregate precision-recall curves by interpolating to common recall values
         # Use a common set of recall values from 0 to 1
-        recall_grid = np.linspace(0, 1, 101)  # 101 points from 0 to 1
+        recall_grid = RECALL_GRID
         precision_interpolated = []
         
         for prec_curve, rec_curve in zip(metrics["precision_curve"], metrics["recall_curve"]):
-            # Sort by recall for interpolation
-            sort_idx = np.argsort(rec_curve)
-            rec_sorted = rec_curve[sort_idx]
-            prec_sorted = prec_curve[sort_idx]
-            
-            # Interpolate precision at common recall values
-            # Use forward fill for values outside the range
-            prec_interp = np.interp(recall_grid, rec_sorted, prec_sorted, 
-                                  left=prec_sorted[0] if len(prec_sorted) > 0 else 1.0,
-                                  right=prec_sorted[-1] if len(prec_sorted) > 0 else 0.0)
-            precision_interpolated.append(prec_interp)
+            precision_interpolated.append(interpolate_precision(prec_curve, rec_curve, recall_grid))
         
         precision_interpolated = np.array(precision_interpolated)
         precision_curve_mean = np.mean(precision_interpolated, axis=0)
@@ -593,6 +608,19 @@ def save_results_fpr(p_values, results_by_p, output_file):
     df = pd.DataFrame(rows)
     df.to_csv(output_file, index=False)
     print(f"Results saved to {output_file}")
+
+
+def save_per_split_fpr(p_values, results_by_p, output_file):
+    """Save every split's result, one row per split and method, beside the summary CSV."""
+    rows = []
+    for p in p_values:
+        for method, metrics in results_by_p[p].items():
+            for split, values in enumerate(zip(metrics['seeds'], metrics['n_genes_values'], metrics['n_degs_values'],
+                                               metrics['fpr_values'], metrics['fpr_filtered_values'])):
+                rows.append(dict(zip(['p', 'method', 'split', 'seed', 'n_genes', 'n_degs', 'fpr', 'fpr_filtered'],
+                                     (p, method, split) + values)))
+    pd.DataFrame(rows).to_csv(output_file, index=False)
+    print(f"Per-split results saved to {output_file}")
 
 
 def save_results_de(p_values, results_by_p, output_file, q, lfc):
@@ -666,10 +694,10 @@ def save_pr_curve_data(p_values, results_by_p, output_file, q, lfc):
 
 def plot_fpr_results(p_values, results_by_p, output_file):
     """Plot log10(FPR) and log10(FPR Filtered) vs p for all methods."""
-    methods = list(results_by_p[p_values[0]].keys())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(methods)))
+    methods = method_draw_order(results_by_p[p_values[0]])
+    colors = [method_color(m) for m in methods]
     
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(1, 2, figsize=plot_style.figsize(2))
     
     # Plot FPR
     for idx, method in enumerate(methods):
@@ -677,14 +705,11 @@ def plot_fpr_results(p_values, results_by_p, output_file):
         fpr_log10_stds = [results_by_p[p][method]["fpr_log10_std"] for p in p_values]
         
         axes[0].errorbar(p_values, fpr_log10_means, yerr=fpr_log10_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[0].set_xlabel('Split probability (p)', fontsize=12)
-    axes[0].set_ylabel('log10(FPR)', fontsize=12)
-    axes[0].set_title('FPR vs Split Probability', fontsize=14, fontweight='bold')
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend(loc='best', fontsize=10)
+    axes[0].set_xlabel(r'$p_\mathrm{split}$')
+    axes[0].set_ylabel('log10(FPR)')
     
     # Plot FPR Filtered
     for idx, method in enumerate(methods):
@@ -692,16 +717,14 @@ def plot_fpr_results(p_values, results_by_p, output_file):
         fpr_filtered_log10_stds = [results_by_p[p][method]["fpr_filtered_log10_std"] for p in p_values]
         
         axes[1].errorbar(p_values, fpr_filtered_log10_means, yerr=fpr_filtered_log10_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[1].set_xlabel('Split probability (p)', fontsize=12)
-    axes[1].set_ylabel('log10(FPR Filtered)', fontsize=12)
-    axes[1].set_title('FPR Filtered (|lfc| > 0.25) vs Split Probability', fontsize=14, fontweight='bold')
-    axes[1].grid(True, alpha=0.3)
-    axes[1].legend(loc='best', fontsize=10)
+    axes[1].set_xlabel(r'$p_\mathrm{split}$')
+    axes[1].set_ylabel('log10(FPR Filtered)')
     
     plt.tight_layout()
+    plot_style.legend_outside(fig)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
@@ -709,10 +732,10 @@ def plot_fpr_results(p_values, results_by_p, output_file):
 
 def plot_de_results(p_values, results_by_p, output_file, q, lfc):
     """Plot TPR, FPR, FNR, and TNR vs p for all methods."""
-    methods = list(results_by_p[p_values[0]].keys())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(methods)))
+    methods = method_draw_order(results_by_p[p_values[0]])
+    colors = [method_color(m) for m in methods]
     
-    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    fig, axes = plt.subplots(2, 2, figsize=plot_style.figsize(2, 2))
     
     # Plot TPR
     for idx, method in enumerate(methods):
@@ -720,14 +743,11 @@ def plot_de_results(p_values, results_by_p, output_file, q, lfc):
         tpr_stds = [results_by_p[p][method]["tpr_std"] for p in p_values]
         
         axes[0, 0].errorbar(p_values, tpr_means, yerr=tpr_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[0, 0].set_xlabel(r'Split probability $p$', fontsize=12)
-    axes[0, 0].set_ylabel('True Positive Rate (TPR)', fontsize=12)
-    axes[0, 0].set_title('TPR vs Split Probability', fontsize=14, fontweight='bold')
-    axes[0, 0].grid(True, alpha=0.3)
-    axes[0, 0].legend(loc='best', fontsize=10)
+    axes[0, 0].set_xlabel(r'$p_\mathrm{split}$')
+    axes[0, 0].set_ylabel('TPR')
     axes[0, 0].set_ylim([0, 1])
     
     # Plot FPR
@@ -736,14 +756,11 @@ def plot_de_results(p_values, results_by_p, output_file, q, lfc):
         fpr_stds = [results_by_p[p][method]["fpr_std"] for p in p_values]
         
         axes[0, 1].errorbar(p_values, fpr_means, yerr=fpr_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[0, 1].set_xlabel(r'Split probability $p$', fontsize=12)
-    axes[0, 1].set_ylabel('False Positive Rate (FPR)', fontsize=12)
-    axes[0, 1].set_title('FPR vs Split Probability', fontsize=14, fontweight='bold')
-    axes[0, 1].grid(True, alpha=0.3)
-    axes[0, 1].legend(loc='best', fontsize=10)
+    axes[0, 1].set_xlabel(r'$p_\mathrm{split}$')
+    axes[0, 1].set_ylabel('FPR')
     axes[0, 1].set_ylim([0, 1])
     
     # Plot FNR
@@ -752,14 +769,11 @@ def plot_de_results(p_values, results_by_p, output_file, q, lfc):
         fnr_stds = [results_by_p[p][method]["fnr_std"] for p in p_values]
         
         axes[1, 0].errorbar(p_values, fnr_means, yerr=fnr_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[1, 0].set_xlabel(r'Split probability $p$', fontsize=12)
-    axes[1, 0].set_ylabel('False Negative Rate (FNR)', fontsize=12)
-    axes[1, 0].set_title('FNR vs Split Probability', fontsize=14, fontweight='bold')
-    axes[1, 0].grid(True, alpha=0.3)
-    axes[1, 0].legend(loc='best', fontsize=10)
+    axes[1, 0].set_xlabel(r'$p_\mathrm{split}$')
+    axes[1, 0].set_ylabel('False Negative Rate (FNR)')
     axes[1, 0].set_ylim([0, 1])
     
     # Plot TNR
@@ -768,17 +782,15 @@ def plot_de_results(p_values, results_by_p, output_file, q, lfc):
         tnr_stds = [results_by_p[p][method]["tnr_std"] for p in p_values]
         
         axes[1, 1].errorbar(p_values, tnr_means, yerr=tnr_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[1, 1].set_xlabel(r'Split probability $p$', fontsize=12)
-    axes[1, 1].set_ylabel('True Negative Rate (TNR)', fontsize=12)
-    axes[1, 1].set_title(f'TNR vs Split Probability (q={q}, lfc={lfc})', fontsize=14, fontweight='bold')
-    axes[1, 1].grid(True, alpha=0.3)
-    axes[1, 1].legend(loc='best', fontsize=10)
+    axes[1, 1].set_xlabel(r'$p_\mathrm{split}$')
+    axes[1, 1].set_ylabel('True Negative Rate (TNR)')
     axes[1, 1].set_ylim([0, 1])
     
     plt.tight_layout()
+    plot_style.legend_outside(fig)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
@@ -786,23 +798,20 @@ def plot_de_results(p_values, results_by_p, output_file, q, lfc):
 
 def plot_pr_results(p_values, results_by_p, output_file):
     """Plot Average Precision (AP) and PR-AUC vs p for all methods."""
-    methods = list(results_by_p[p_values[0]].keys())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(methods)))
+    methods = method_draw_order(results_by_p[p_values[0]])
+    colors = [method_color(m) for m in methods]
     
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(1, 2, figsize=plot_style.figsize(2))
     
     # Plot AP
     for idx, method in enumerate(methods):
         ap_means = [results_by_p[p][method].get("ap_mean", np.nan) for p in p_values]
         ap_stds = [results_by_p[p][method].get("ap_std", np.nan) for p in p_values]
         axes[0].errorbar(p_values, ap_means, yerr=ap_stds,
-                         marker='o', capsize=5, capthick=2, label=method,
-                         color=colors[idx], linewidth=2, markersize=6)
-    axes[0].set_xlabel(r'Split probability $p$', fontsize=12)
-    axes[0].set_ylabel('Average Precision (AP)', fontsize=12)
-    axes[0].set_title('AP vs Split Probability', fontsize=14, fontweight='bold')
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend(loc='best', fontsize=10)
+                         label=method_label(method),
+                         color=colors[idx], **plot_style.ERRORBAR)
+    axes[0].set_xlabel(r'$p_\mathrm{split}$')
+    axes[0].set_ylabel('Average Precision (AP)')
     axes[0].set_ylim([0, 1])
     
     # Plot PR-AUC (trapezoidal)
@@ -810,16 +819,14 @@ def plot_pr_results(p_values, results_by_p, output_file):
         pr_auc_means = [results_by_p[p][method].get("pr_auc_mean", np.nan) for p in p_values]
         pr_auc_stds = [results_by_p[p][method].get("pr_auc_std", np.nan) for p in p_values]
         axes[1].errorbar(p_values, pr_auc_means, yerr=pr_auc_stds,
-                         marker='o', capsize=5, capthick=2, label=method,
-                         color=colors[idx], linewidth=2, markersize=6)
-    axes[1].set_xlabel(r'Split probability $p$', fontsize=12)
-    axes[1].set_ylabel('PR-AUC (Trapezoidal)', fontsize=12)
-    axes[1].set_title('PR-AUC vs Split Probability', fontsize=14, fontweight='bold')
-    axes[1].grid(True, alpha=0.3)
-    axes[1].legend(loc='best', fontsize=10)
+                         label=method_label(method),
+                         color=colors[idx], **plot_style.ERRORBAR)
+    axes[1].set_xlabel(r'$p_\mathrm{split}$')
+    axes[1].set_ylabel('PR-AUC (Trapezoidal)')
     axes[1].set_ylim([0, 1])
     
     plt.tight_layout()
+    plot_style.legend_outside(fig)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
@@ -827,15 +834,15 @@ def plot_pr_results(p_values, results_by_p, output_file):
 
 def plot_precision_recall_results(p_values, results_by_p, output_file, q, lfc):
     """Plot Precision vs Recall curves for each p value (PR curves based on gene ranking)."""
-    methods = list(results_by_p[p_values[0]].keys())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(methods)))
+    methods = method_draw_order(results_by_p[p_values[0]])
+    colors = [method_color(m) for m in methods]
     
     # Create subplots: one for each p value
     n_p = len(p_values)
     n_cols = min(3, n_p)
     n_rows = (n_p + n_cols - 1) // n_cols
     
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6*n_cols, 5*n_rows))
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=plot_style.figsize(n_cols, n_rows))
     if n_p == 1:
         axes = [axes]
     else:
@@ -852,9 +859,10 @@ def plot_precision_recall_results(p_values, results_by_p, output_file, q, lfc):
             
             if recall_grid is not None and precision_curve_mean is not None:
                 # Plot mean curve
-                ax.plot(recall_grid, precision_curve_mean, 
-                       label=f'{method} (AUC={pr_auc_curve_mean:.3f})',
-                       color=colors[method_idx], linewidth=2)
+                ax.plot(recall_grid, precision_curve_mean,
+                       label=method_label(method), color=colors[method_idx], linewidth=1.3)
+                ax.text(0.03, 0.03 + 0.09 * (len(methods) - 1 - method_order(methods).index(method)), f'AUC {pr_auc_curve_mean:.3f}',
+                        transform=ax.transAxes, color=colors[method_idx], fontsize=plot_style.SMALL)
                 
                 # Plot std as shaded region
                 if precision_curve_std is not None:
@@ -863,12 +871,9 @@ def plot_precision_recall_results(p_values, results_by_p, output_file, q, lfc):
                                   precision_curve_mean + precision_curve_std,
                                   alpha=0.2, color=colors[method_idx])
         
-        ax.set_xlabel('Recall', fontsize=11)
-        ax.set_ylabel('Precision', fontsize=11)
-        ax.set_title(f'Precision vs Recall (p={p:.3f}, q={q}, lfc={lfc})', 
-                    fontsize=12, fontweight='bold')
-        ax.grid(True, alpha=0.3)
-        ax.legend(loc='best', fontsize=9)
+        ax.set_xlabel('Recall')
+        ax.set_ylabel('Precision')
+        ax.set_title(rf'$p_\mathrm{{split}}$ = {p:.3f}')
         ax.set_xlim([0, 1])
         ax.set_ylim([0, 1])
     
@@ -877,6 +882,7 @@ def plot_precision_recall_results(p_values, results_by_p, output_file, q, lfc):
         axes[idx].axis('off')
     
     plt.tight_layout()
+    plot_style.legend_outside(fig)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
@@ -899,8 +905,10 @@ if __name__ == '__main__':
                         help='Number of repetitions per p value (default: 100)')
     parser.add_argument('--n_jobs', type=int, default=None,
                         help='Number of parallel jobs (default: all available cores)')
-    parser.add_argument('--output', type=str, default='shape_split_test_plot.png',
-                        help='Output file for the plot (default: shape_split_test_plot.png)')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Seed for the per-repetition seeds (default: 0)')
+    parser.add_argument('--output', type=str, default=str(results_dir(__file__) / fig_name('shape_split_test_plot')),
+                        help='Output file for the plot (default: kidney/results/shape_split_test_plot.pdf)')
     parser.add_argument('--results_file', type=str, default=None,
                         help='Output file for results CSV (default: auto-generated from output name)')
     # NOT merged_blobs_in_cluster_5.h5ad. That is the per-capsule aggregate the two
@@ -939,7 +947,7 @@ if __name__ == '__main__':
         raise ValueError("q must be between 0 and 1")
     
     if q == 0:
-        print("Running in FPR test mode (q=0, no DE genes introduced)")
+        print("Running in FPR test mode (q=0, no DEGs introduced)")
     else:
         print(f"Running in DE test mode (q={q}, lfc={lfc})")
     
@@ -961,20 +969,11 @@ if __name__ == '__main__':
     if 'gene_ids' in h5ad.var.columns:
         h5ad.var = h5ad.var.reset_index().set_index('gene_ids')
     
-    # Robustly convert to a dense numpy array
-    X_raw = h5ad.X
-    if sp.issparse(X_raw):
-        umis_w_zeros = X_raw.toarray()
-    else:
-        umis_w_zeros = np.asarray(X_raw)
-    
+    umis = sp.csr_matrix(h5ad.X)
+
     shape_ids = h5ad.obs['shape_id'].values
-    
+
     print(f"Preprocessing data...")
-    # preprocessing
-    # remove genes with zero counts across all spots
-    idx = umis_w_zeros.sum(0) > 0
-    umis = umis_w_zeros#[:, idx]
     n_genes = umis.shape[-1]
     n_spots = umis.shape[0]
     
@@ -1006,14 +1005,7 @@ if __name__ == '__main__':
     n_shape_ids_after = len(np.unique(shape_ids_base))
     print(f"After removing {n_shape_ids_remove} shape_ids: {n_spots_after} spots, {n_shape_ids_after} shape_ids")
     print(f"Data shape: {umis_base.shape}")
-    
-    # Convert sparse to dense once for efficiency (if sparse)
-    # This avoids repeated sparse operations
-    if sp.issparse(umis_base):
-        print("Converting sparse matrix to dense for faster processing...")
-        umis_base = umis_base.toarray()
-        print("Conversion complete.")
-    
+
     # Pre-compute shape_id to indices mapping (once, used for all iterations)
     print("Pre-computing shape_id to indices mapping...")
     unique_shape_ids = np.unique(shape_ids_base)
@@ -1021,59 +1013,44 @@ if __name__ == '__main__':
     for shape_id in unique_shape_ids:
         shape_id_to_indices[shape_id] = np.where(shape_ids_base == shape_id)[0]
     print(f"Pre-computed mapping for {len(unique_shape_ids)} shape_ids")
-    
-    # Create shared memory for umis_base to avoid copying to each worker
-    # This is critical for large arrays (e.g., 600K spots × 18K genes)
-    print("Creating shared memory for umis_base to avoid copying to workers...")
-    umis_shape = umis_base.shape
-    umis_dtype = umis_base.dtype
-    shm = shared_memory.SharedMemory(create=True, size=umis_base.nbytes)
-    umis_shm = np.ndarray(umis_shape, dtype=umis_dtype, buffer=shm.buf)
-    umis_shm[:] = umis_base[:]  # Copy data into shared memory
-    umis_shm_name = shm.name
-    print(f"Shared memory created: {shm.name}, size: {umis_base.nbytes / 1e9:.2f} GB")
-    
+
     print(f"Running tests for {p_steps} p values, {n_reps} repetitions each, using {n_jobs} cores...")
     print("Note: Splitting is done in parallel in worker processes, testing is also parallelized.")
     
     # Generate p values
     p_values = np.linspace(p_min, p_max, p_steps)
-    
+
+    np.random.seed(args.seed)
+
     # Run tests for each p value
     results_by_p = {}
-    try:
-        for i, p in enumerate(p_values):
-            print(f"Processing p={p:.3f} ({i+1}/{p_steps})...")
-            if q == 0:
-                results_by_p[p] = run_tests_for_p_fpr(p, umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs)
-                # Print summary for this p
-                for method, metrics in results_by_p[p].items():
-                    print(f"  {method}: FPR={metrics['fpr_mean']:.4f}±{metrics['fpr_std']:.4f}, "
-                          f"FPR Filtered={metrics['fpr_filtered_mean']:.4f}±{metrics['fpr_filtered_std']:.4f}")
-            else:
-                results_by_p[p] = run_tests_for_p_de(p, q, lfc, umis_shm_name, umis_shape, umis_dtype, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs)
-                # Print summary for this p
-                for method, metrics in results_by_p[p].items():
-                    print(f"  {method}: "
-                          f"AP={metrics.get('ap_mean', np.nan):.4f}±{metrics.get('ap_std', np.nan):.4f}, "
-                          f"PR-AUC={metrics.get('pr_auc_mean', np.nan):.4f}±{metrics.get('pr_auc_std', np.nan):.4f}, "
-                          f"PR-AUC-Curve={metrics.get('pr_auc_curve_mean', np.nan):.4f}±{metrics.get('pr_auc_curve_std', np.nan):.4f}, "
-                          f"Accuracy={metrics.get('accuracy_mean', np.nan):.4f}±{metrics.get('accuracy_std', np.nan):.4f}, "
-                          f"Precision={metrics.get('precision_mean', np.nan):.4f}±{metrics.get('precision_std', np.nan):.4f}, "
-                          f"TPR={metrics['tpr_mean']:.4f}±{metrics['tpr_std']:.4f}, "
-                          f"FPR={metrics['fpr_mean']:.4f}±{metrics['fpr_std']:.4f}, "
-                          f"FNR={metrics['fnr_mean']:.4f}±{metrics['fnr_std']:.4f}, "
-                          f"TNR={metrics['tnr_mean']:.4f}±{metrics['tnr_std']:.4f}")
-    
-    finally:
-        # Clean up shared memory
-        print("Cleaning up shared memory...")
-        shm.close()
-        shm.unlink()  # Release the shared memory block
-    
+    for i, p in enumerate(p_values):
+        print(f"Processing p={p:.3f} ({i+1}/{p_steps})...")
+        if q == 0:
+            results_by_p[p] = run_tests_for_p_fpr(p, umis_base, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs)
+            # Print summary for this p
+            for method, metrics in results_by_p[p].items():
+                print(f"  {method}: FPR={metrics['fpr_mean']:.4f}±{metrics['fpr_std']:.4f}, "
+                      f"FPR Filtered={metrics['fpr_filtered_mean']:.4f}±{metrics['fpr_filtered_std']:.4f}")
+        else:
+            results_by_p[p] = run_tests_for_p_de(p, q, lfc, umis_base, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs)
+            # Print summary for this p
+            for method, metrics in results_by_p[p].items():
+                print(f"  {method}: "
+                      f"AP={metrics.get('ap_mean', np.nan):.4f}±{metrics.get('ap_std', np.nan):.4f}, "
+                      f"PR-AUC={metrics.get('pr_auc_mean', np.nan):.4f}±{metrics.get('pr_auc_std', np.nan):.4f}, "
+                      f"PR-AUC-Curve={metrics.get('pr_auc_curve_mean', np.nan):.4f}±{metrics.get('pr_auc_curve_std', np.nan):.4f}, "
+                      f"Accuracy={metrics.get('accuracy_mean', np.nan):.4f}±{metrics.get('accuracy_std', np.nan):.4f}, "
+                      f"Precision={metrics.get('precision_mean', np.nan):.4f}±{metrics.get('precision_std', np.nan):.4f}, "
+                      f"TPR={metrics['tpr_mean']:.4f}±{metrics['tpr_std']:.4f}, "
+                      f"FPR={metrics['fpr_mean']:.4f}±{metrics['fpr_std']:.4f}, "
+                      f"FNR={metrics['fnr_mean']:.4f}±{metrics['fnr_std']:.4f}, "
+                      f"TNR={metrics['tnr_mean']:.4f}±{metrics['tnr_std']:.4f}")
+
     print(f"\nSaving results...")
     if q == 0:
         save_results_fpr(p_values, results_by_p, results_file)
+        save_per_split_fpr(p_values, results_by_p, f"{os.path.splitext(output_file)[0]}_per_split.csv")
         # plot_fpr_results(p_values, results_by_p, output_file)
     else:
         save_results_de(p_values, results_by_p, results_file, q, lfc)

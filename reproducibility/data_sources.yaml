@@ -1,0 +1,133 @@
+sources:
+  - name: pbmc3k
+    what: PBMC3k raw 10x matrix, filtered_gene_bc_matrices
+    url: https://cf.10xgenomics.com/samples/cell-exp/1.1.0/pbmc3k/pbmc3k_filtered_gene_bc_matrices.tar.gz
+    dest: data/pbmc3k_filtered_gene_bc_matrices.tar.gz
+    sha256: 847d6ebd9a1ec9a768f2be7e40ca42cbfe75ebeb6d76a4c24167041699dc28b5
+    bytes: 7621991
+    extract_to: data
+    # clustering/de.py reads the tarball directly; celltype/preprocess.py wants
+    # the unpacked data/filtered_gene_bc_matrices/hg19/, hence extract_to.
+    arms: [clustering, celltype]
+
+  - name: citeseq-raw
+    what: >-
+      5' PBMC 10k filtered_feature_bc_matrix.h5, the raw input to
+      citeseq/R/pbmc10k_process.R
+    url: https://cf.10xgenomics.com/samples/cell-vdj/5.0.0/sc5p_v2_hs_PBMC_10k/sc5p_v2_hs_PBMC_10k_filtered_feature_bc_matrix.h5
+    dest: citeseq/data/sc5p_v2_hs_PBMC_10k_filtered_feature_bc_matrix.h5
+    sha256: d82e92f73fbe01bc2b41b1aa96220617cdbad53ef5387edead67daf5f012cc96
+    bytes: 29938385
+    arms: [citeseq, clustering]   # clustering: the second dataset, clustering/pbmc10k_prep.py
+
+  - name: kang2018
+    what: Kang et al. 2018 PBMC IFN-beta dataset, for the celltype arm
+    command: "import pertpy, shutil, pathlib; p = pertpy.data.kang_2018()"
+    dest: data/kang_2018.h5ad
+    sha256: e6a5adac64dcdeb36eaba27db49b63e0c64bb0ed4a64c6705971506b41c39830
+    arms: [celltype]
+
+  - name: kidney-spatial
+    what: Visium HD Human Kidney FFPE, spatial (tissue images and positions)
+    url: https://cf.10xgenomics.com/samples/spatial-exp/3.1.2/Visium_HD_Human_Kidney_FFPE/Visium_HD_Human_Kidney_FFPE_spatial.tar.gz
+    dest: kidney/data/Visium_HD_Human_Kidney_FFPE_spatial.tar.gz
+    sha256: 06a622786ff95046e37cbe533643dbd59c59f11902a98aed9a7dd5daa88dc623
+    bytes: 80586053
+    extract_to: kidney/data
+    arms: [kidney]
+
+  - name: kidney-binned
+    what: Visium HD Human Kidney FFPE, binned_outputs (2um and 16um matrices)
+    url: https://cf.10xgenomics.com/samples/spatial-exp/3.1.2/Visium_HD_Human_Kidney_FFPE/Visium_HD_Human_Kidney_FFPE_binned_outputs.tar.gz
+    dest: kidney/data/Visium_HD_Human_Kidney_FFPE_binned_outputs.tar.gz
+    sha256: null
+    bytes: 6432611994
+    extract_to: kidney/data
+    arms: [kidney]
+
+  - name: kidney-he-fullres
+    what: >-
+      Visium HD Human Kidney FFPE, the full-resolution H&E (0.27 um per pixel), only for the
+      close-ups in kidney/capsule_figure.py
+    url: https://cf.10xgenomics.com/samples/spatial-exp/3.1.2/Visium_HD_Human_Kidney_FFPE/Visium_HD_Human_Kidney_FFPE_tissue_image.tif
+    dest: kidney/data/Visium_HD_Human_Kidney_FFPE_tissue_image.tif
+    sha256: 7c5ecbe041ccaee18172ce42964b07f1bd30f533849ceeb300f38291ceb00ff5
+    bytes: 4328630264
+    arms: [kidney]
+
+  - name: lymphnode-segmented
+    what: Visium HD Human Lymph Node FFPE, segmented_outputs (cell segmentations)
+    url: https://cf.10xgenomics.com/samples/spatial-exp/4.0.1/Visium_HD_Human_Lymph_Node_FFPE/Visium_HD_Human_Lymph_Node_FFPE_segmented_outputs.tar.gz
+    dest: lymphnode/data/Visium_HD_Human_Lymph_Node_FFPE_segmented_outputs.tar.gz
+    sha256: null
+    bytes: 1934448662
+    extract_to: lymphnode/data
+    arms: [lymphnode]
+
+  - name: lymphnode-he-fullres
+    what: >-
+      Visium HD Human Lymph Node FFPE, the full-resolution H&E, only for the cell close-up in
+      Fig 2's lymph node diagram
+    url: https://cf.10xgenomics.com/samples/spatial-exp/4.0.1/Visium_HD_Human_Lymph_Node_FFPE/Visium_HD_Human_Lymph_Node_FFPE_tissue_image.tif
+    dest: lymphnode/data/Visium_HD_Human_Lymph_Node_FFPE_tissue_image.tif
+    sha256: 2dcff022a36483501ae918f783b5f46b12326c3e9c287f4a8972927b93ed96ca
+    bytes: 2218305037
+    arms: [lymphnode]
+  - name: lymphnode-binned
+    what: Visium HD Human Lymph Node FFPE, binned_outputs (2um and 16um matrices)
+    url: https://cf.10xgenomics.com/samples/spatial-exp/4.0.1/Visium_HD_Human_Lymph_Node_FFPE/Visium_HD_Human_Lymph_Node_FFPE_binned_outputs.tar.gz
+    dest: lymphnode/data/Visium_HD_Human_Lymph_Node_FFPE_binned_outputs.tar.gz
+    sha256: null
+    bytes: 2783809559
+    extract_to: lymphnode/data
+    arms: [lymphnode]
+
+  - name: monaco2019-supplementary
+    what: >-
+      Monaco et al. 2019 (Cell Reports 26:1627) supplementary files as Europe PMC serves them (PMC6367568); the
+      immune housekeeping genes of its Table S3 (mmc4.xlsx, sheet "Immune-housekeeping genes", read inside the zip)
+      for clustering/marker_rule.py. The zip's mmc3.xlsx (Table S2) is truncated in this copy and is not used.
+    url: https://www.ebi.ac.uk/europepmc/webservices/rest/PMC6367568/supplementaryFiles
+    dest: data/monaco2019_supplementary.zip
+    sha256: c1b5461cbd795a4c222001e884ee8c1ca59ee9c81ed5f0e93893eee3cb3cc82f
+    bytes: 54695287
+    arms: [clustering]
+  - name: hpa-25.1
+    what: >-
+      Human Protein Atlas release 25.1, proteinatlas.tsv.zip; its RNA blood cell specificity (18 immune cell types)
+      for clustering/marker_rule.py, read inside the zip
+    url: https://v25.proteinatlas.org/download/proteinatlas.tsv.zip
+    dest: data/hpa_25.1_proteinatlas.tsv.zip
+    sha256: ad401f8519ecdee5b67b0ad3bf28175d402d1ea0ad6c542b90fcab2bee39b470
+    bytes: 7460135
+    arms: [clustering]
+  - name: monaco2019-tpm
+    what: >-
+      Monaco et al. 2019 sorted immune-cell bulk RNA-seq (29 populations, 4 donors), GEO GSE107011 processed TPM;
+      the sorted-cell truth for clustering/multires_gaps.py
+    url: https://ftp.ncbi.nlm.nih.gov/geo/series/GSE107nnn/GSE107011/suppl/GSE107011_Processed_data_TPM.txt.gz
+    dest: data/GSE107011_Processed_data_TPM.txt.gz
+    sha256: 8c4abbdd4a118a051e7ef8ef4858568a3e67e60135733b06dab80b430efc1eb9
+    bytes: 15420393
+    arms: [clustering]
+
+  - name: abdelfattah2022-counts
+    what: >-
+      Abdelfattah et al. 2022 (Nat Commun 13:767), glioma scRNA-seq: GEO GSE182109, one 10x
+      matrix per sample, for published/abdelfattah2022.py
+    url: https://ftp.ncbi.nlm.nih.gov/geo/series/GSE182nnn/GSE182109/suppl/GSE182109_RAW.tar
+    dest: data/GSE182109_RAW.tar
+    sha256: a239479d134c3fdba4fd7e5103c725441725e5e79cdde524338e5281384c1b59
+    bytes: 2460129280
+    extract_to: data/GSE182109
+    arms: [published]
+
+  - name: abdelfattah2022-metadata
+    what: >-
+      Abdelfattah et al. 2022, the authors' per-cell metadata with their myeloid subclusters
+      (MC01-MC09), from github.com/parveendabas/GBMatlas at a pinned commit
+    url: https://raw.githubusercontent.com/parveendabas/GBMatlas/f1d0d59076134680e890476cd4710b005a581a65/Meta_Data_GBMatlas.txt
+    dest: data/Meta_Data_GBMatlas.txt
+    sha256: f79f3e4ce9d8e9fd63d08a3c3434058d9788f52cb861db36cccdd45e4806ef76
+    bytes: 35419131
+    arms: [published]

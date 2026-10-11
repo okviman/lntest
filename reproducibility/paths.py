@@ -14,6 +14,7 @@ from, instead of dying part-way through a run.
 
 from __future__ import annotations
 
+import os
 import pathlib
 import sys
 
@@ -46,3 +47,19 @@ def require_input(path, *, what: str, source: str) -> pathlib.Path:
         f"  source : {source}\n\n"
         f"This arm cannot run without it. Nothing has been written.\n"
     )
+
+
+FIG_EXT = os.environ.get("LNTEST_FIG_FORMAT", "pdf").lstrip(".")
+
+os.environ.setdefault("SOURCE_DATE_EPOCH", "0")
+
+
+_FIG_SUFFIXES = {".png", ".pdf", ".eps", ".svg", ".jpg", ".jpeg", ".tif", ".tiff"}
+
+
+def fig_name(stem) -> str:
+    """Figure filename for ``stem``, replacing an image extension if it has one."""
+    p = pathlib.PurePath(str(stem))
+    if p.suffix.lower() in _FIG_SUFFIXES:
+        p = p.with_suffix("")
+    return f"{p}.{FIG_EXT}"

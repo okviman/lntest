@@ -5,11 +5,11 @@ Script to compute clustering metrics (no DE performed in this script).
 This script expects an AnnData file that already contains precomputed 
 differential expression (DE) results for multiple clustering resolutions and DE methods.
 It computes and saves cluster-level and cell-type level metrics (Jaccard indices, 
-number of significant DE genes, average |LFC|, etc) as CSV files in an output folder.
+number of significant DEGs, average |LFC|, etc) as CSV files in an output folder.
 Uses evaluation_utils for all metrics.
 
 Usage:
-    python compute_clustering_metrics.py --config config.yaml [--output-dir output/]
+    python compute_clustering_metrics.py --config config.yaml [--output-dir clustering/results/]
 """
 
 import argparse
@@ -19,7 +19,7 @@ import yaml
 import numpy as np
 import pandas as pd
 
-from paths import require_input
+from paths import require_input, results_dir
 import scanpy as sc
 
 # Run from reproducibility/ as `python -m clustering.metrics`, which puts that
@@ -55,8 +55,8 @@ def main():
         '--config', type=str, required=True, help='Path to YAML configuration file'
     )
     parser.add_argument(
-        '--output-dir', type=str, default='output',
-        help='Base output directory; metric CSVs are written to its "metrics" subfolder (default: output)'
+        '--output-dir', type=str, default=str(results_dir(__file__)),
+        help='Base output directory; metric CSVs are written to its "metrics" subfolder (default: clustering/results)'
     )
     parser.add_argument(
         '--skip-plots', action='store_true',
@@ -93,7 +93,7 @@ def main():
 
     # ----------- Metrics computations start here ------------
 
-    # 1. Get cluster signatures (top N sig genes) via evaluation_utils
+    # 1. Get cluster signatures (top N significant upregulated genes) via evaluation_utils
     print("Preparing DE signatures ...")
     cluster_signatures = dict()
     for method in de_methods:
@@ -104,10 +104,10 @@ def main():
             cluster_signatures[method][key] = dict()
             for cluster in clusters:
                 cluster_signatures[method][key][cluster] = get_top_sig_genes_adata(
-                    adata, cluster, top_n=top_genes, key=method_key, pval_threshold=0.05
+                    adata, cluster, top_n=top_genes, key=method_key, pval_threshold=0.05, positive_score_only=True
                 )
 
-    # 2. All significant DE genes (padj < 0.05)
+    # 2. All significant upregulated genes (padj < 0.05, score > 0): a cluster's markers are higher in it
     all_sig_cluster_signatures = dict()
     for method in de_methods:
         all_sig_cluster_signatures[method] = dict()
@@ -117,12 +117,12 @@ def main():
             all_sig_cluster_signatures[method][key] = dict()
             for cluster in clusters:
                 all_sig_cluster_signatures[method][key][cluster] = get_all_sig_genes_adata(
-                    adata, cluster, key=method_key, pval_threshold=0.05
+                    adata, cluster, key=method_key, pval_threshold=0.05, positive_score_only=True
                 )
 
     # ---------- Signature-based metrics, computed for each signature set ----------
-    # Two signature sets are evaluated: the top-N significant genes per cluster and
-    # the full set of significant genes per cluster. Each produces its own Jaccard
+    # Two signature sets are evaluated: the top-N significant upregulated genes per cluster
+    # and all of its significant upregulated genes. Each produces its own Jaccard
     # and recall heatmap matrices plus avg-Jaccard, avg-recall and best-match CSVs,
     # tagged in the filename (e.g. "top20" vs "allsig").
     def compute_signature_metrics(signatures, tag):
@@ -199,8 +199,8 @@ def main():
         index=False
     )
 
-    # ---------- Metric 5: Number of significant DE genes (via evaluation_utils) ----------
-    print("Computing number of significant DE genes per cluster ...")
+    # ---------- Metric 5: Number of significant DEGs (via evaluation_utils) ----------
+    print("Computing number of significant DEGs per cluster ...")
     records = []
     for method in de_methods:
         for key in resolution_keys:

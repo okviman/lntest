@@ -7,7 +7,7 @@ Scanpy's t-test (and wilcoxon) across multiple clustering resolutions, saving al
 DE results to the updated AnnData file.
 
 Usage:
-    python run_multiresolution_de.py --config config.yaml [--output-dir output/]
+    python run_multiresolution_de.py --config config.yaml [--output-dir clustering/results/]
 """
 
 import argparse
@@ -21,7 +21,7 @@ import anndata as ad
 import scipy.sparse as sp
 import pandas as pd
 
-from paths import require_input
+from paths import require_input, results_dir
 
 # pandas >= 3.0 defaults to Arrow-backed string dtype, which anndata cannot
 # serialize to h5ad. Disable it before any data is read so all string indices
@@ -242,7 +242,7 @@ def run_mast_de(
             by = "primerid"
         )
         colnames(fcHurdle) <- c("names", "pvals", "logfoldchanges")
-        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "BH")
+        fcHurdle$pvals_adj <- p.adjust(fcHurdle$pvals, method = "bonferroni")
         fcHurdle$scores <- -log10(fcHurdle$pvals + 1e-300) * sign(fcHurdle$logfoldchanges)
         mast_result <- fcHurdle
         rm(sca, zlmCond, summaryCond, summaryDt, fcHurdle)
@@ -291,8 +291,8 @@ def main():
     parser.add_argument(
         '--output-dir',
         type=str,
-        default='output',
-        help='Directory to save output files (default: output)'
+        default=str(results_dir(__file__)),
+        help='Directory to save output files (default: clustering/results)'
     )
     parser.add_argument(
         '--skip-mast',
@@ -400,7 +400,7 @@ def main():
         adata_full.layers['counts'] = tocsr_if_not_sparse(adata_full.X)
 
     if 'norm_counts' not in adata_full.layers:
-        print("Computing norm_counts layer (CPM/total count normalized, not log1p)...")
+        print("Computing norm_counts layer (CP10K, not log1p)...")
         temp = adata_full.copy()
         sc.pp.normalize_total(temp, target_sum=1e4)
         adata_full.layers['norm_counts'] = tocsr_if_not_sparse(temp.X)
@@ -423,15 +423,17 @@ def main():
         # Run LN test (on norm_counts layer, all genes)
         ln_key = f"ln_{key_name}"
         print(f"    Running LN test for '{key_name}' ...")
-        rank_genes_groups_ln(adata_full, key_name, sparse=True, key_added=ln_key, layer="norm_counts")
+        rank_genes_groups_ln(adata_full, key_name, sparse=True, key_added=ln_key, layer="norm_counts", corr_method="bonferroni")
+        # Benjamini-Hochberg for every method, passed explicitly rather than left to each default.
         # Run Scanpy t-test (on log1p_norm layer, all genes)
         t_test_key = f"t_test_{key_name}"
         print(f"    Running Scanpy t-test for '{key_name}' ...")
-        sc.tl.rank_genes_groups(adata_full, groupby=key_name, method="t-test", key_added=t_test_key, layer="log1p_norm", use_raw=False)
+        sc.tl.rank_genes_groups(adata_full, groupby=key_name, method="t-test", corr_method="bonferroni", key_added=t_test_key, layer="log1p_norm", use_raw=False)
         # Run Scanpy wilcoxon (on log1p_norm layer, all genes)
         wilcoxon_key = f"wilcoxon_{key_name}"
         print(f"    Running Scanpy wilcoxon test for '{key_name}' ...")
-        sc.tl.rank_genes_groups(adata_full, groupby=key_name, method="wilcoxon", key_added=wilcoxon_key, layer="log1p_norm", use_raw=False)
+        sc.tl.rank_genes_groups(adata_full, groupby=key_name, method="wilcoxon", corr_method="bonferroni", key_added=wilcoxon_key, layer="log1p_norm", use_raw=False,
+                                tie_correct=True)
         # Run MAST (on log1p_norm layer, all genes)
         if not args.skip_mast:
             mast_key = f"mast_{key_name}"

@@ -1,6 +1,5 @@
 rm(list=ls())
 library(data.table)
-library(ggplot2)
 library(glue)
 library(Seurat)
 library(tidyverse)
@@ -11,6 +10,8 @@ library(xtable)
 # citeseq/data/; everything this chain produces goes to citeseq/results/.
 data_dir <- "../data/"
 results_dir <- "../results/"
+# No figures are drawn in R: citeseq/plots.py draws them from the CSVs this chain writes.
+
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 
@@ -40,10 +41,6 @@ for (rep_no in replicates)
   results_dt <- data.table(gene_names = rownames(results), 
                            seurat_lfc = results$avg_log2FC)
   merged <- merge(true_lfcs_dt, results_dt, by="gene_names")
-  pl <- ggplot(merged, aes(true_lfcs, seurat_lfc)) + 
-    geom_point() + 
-    geom_abline(slope=1, intercept=0, color="red", linetype="dashed")
-  ggsave(glue("{data_path}/seurat_lfc_plot.png"), pl)
   saveRDS(merged, glue("{data_path}/seurat_lfc_results.rds"))
   lfc_results[[(rep_no+1)]] <- merged
 }
@@ -52,11 +49,8 @@ lfc_results_dt <- rbindlist(lfc_results, idcol = TRUE)
 lfc_results_dt$rep <- lfc_results_dt$.id - 1
 saveRDS(lfc_results_dt, paste0(results_dir, "seurat_lfc_results.rds"))
 
-pl <- ggplot(lfc_results_dt, aes(true_lfcs, seurat_lfc)) + 
-  geom_point() +
-  geom_abline(slope=1, intercept=0, color="red", linetype="dashed")
-pl
-ggsave(glue("{results_dir}CITE_seq_seurat_lfc_plot.png"), pl)
+# The same table as CSV, for the Seurat LFC figures (citeseq/plots.py).
+fwrite(lfc_results_dt, paste0(results_dir, "seurat_lfc_results.csv"))
 
 # Look at one specific replicate to see why Seurat's LFC is worse.
 rep_no <- 2

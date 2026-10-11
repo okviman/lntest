@@ -39,6 +39,18 @@ def recall(signature: Union[Set[str], List[str]], markers: Union[Set[str], List[
     return len(sig & mk) / len(mk)
 
 
+def precision(signature: Union[Set[str], List[str]], markers: Union[Set[str], List[str]]) -> float:
+    """Fraction of a signature that are marker genes: |signature & markers| / |signature|.
+
+    Returns NaN if the signature is empty, where precision is undefined.
+    """
+    sig = set(str(x).strip() for x in signature)
+    mk = set(str(x).strip() for x in markers)
+    if len(sig) == 0:
+        return float("nan")
+    return len(sig & mk) / len(sig)
+
+
 def aupr_from_ranking(
     gene_list: List[str],
     score_list: np.ndarray,
@@ -93,10 +105,14 @@ def get_top_sig_genes_adata(
     top_n: int,
     key: str = "rank_genes_groups",
     pval_threshold: float = 0.05,
+    positive_score_only: bool = False,
 ) -> Set[str]:
-    """Top N significant genes for group (sorted by score descending)."""
+    """Top N significant genes for group (sorted by score descending). If positive_score_only, only genes with
+    score > 0 (upregulated), so a group with fewer than N of them never takes downregulated ones."""
     df = _get_rank_genes_df(adata, group, key)
     sig = df[df["pvals_adj"] < pval_threshold]
+    if positive_score_only:
+        sig = sig[sig["scores"] > 0]
     if sig.shape[0] == 0:
         return set()
     sig = sig.sort_values("scores", ascending=False)

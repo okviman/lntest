@@ -1,4 +1,8 @@
-# Results. Every arm writes here; nothing under it is tracked.
+# Results. Every arm writes to its own results/ beside its scripts. New files there are
+# ignored; the nine committed before this rule (the June CITE-seq outputs, the Kang markers,
+# de_metrics_mu10_nobatch.csv) stay tracked, so `git status` shows them if a run rewrites them.
+*/results/
+# Scratch from earlier verification sessions, not arm results.
 output/
 
 # Experiment inputs, fetched or derived rather than committed. decision-data-out-of-head
@@ -9,14 +13,11 @@ data/
 !nullsplit/data/
 !citeseq/data/
 
-# Per-run artifacts that land inside tracked results/ directories rather than
-# output/. citeseq/exp.py writes 100 diagnostic PNGs and 400 per-replicate dumps
-# (590 MB) on every run, and synthetic_nb/de_test.py writes its CSV beside the
-# committed one. Measured 2026-09-10; without these, one documented command puts
-# 600 MB in front of `git add`.
-citeseq/results/figures/
-citeseq/results/replicates/
-synthetic_nb/results/nde_mu10_be/
+# The CITE-seq rebuild chain's artifacts, ~80 MB per run. citeseq/data/ is
+# un-ignored above so memory_CD4.h5ad can stay committed, which also exposes the
+# 29 MB raw download fetch_data puts beside it -- hence naming it explicitly.
+citeseq/data/sc5p_v2_hs_PBMC_10k_filtered_feature_bc_matrix.h5
+citeseq/R/Rplots.pdf
 
 # Local caches used to keep Numba/Matplotlib writable under sandboxing
 .numba_cache/

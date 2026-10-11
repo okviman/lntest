@@ -11,12 +11,15 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 import pandas as pd
 
-from paths import data_dir, require_input
+from paths import data_dir, fig_name, require_input, results_dir
+import plot_style
+from method_colors import method_color, method_draw_order, method_label, method_order
 
 # Run from reproducibility/ as `python -m kidney.umi_null`, which puts that
 # directory on sys.path -- no path manipulation needed.
 from lntest import get_LN_lfcs as get_DELN_lfcs
 from baselines import get_test_results, scanpy_sig_test
+plot_style.use()
 
 
 def fpr_test_single(X, Y):
@@ -171,10 +174,10 @@ def save_results(p_values, results_by_p, output_file):
 
 def plot_fdr_results(p_values, results_by_p, output_file):
     """Plot log10(FPR) and log10(FPR Filtered) vs p for all methods in the same plot."""
-    methods = list(results_by_p[p_values[0]].keys())
-    colors = plt.cm.tab10(np.linspace(0, 1, len(methods)))
+    methods = method_draw_order(results_by_p[p_values[0]])
+    colors = [method_color(m) for m in methods]
     
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig, axes = plt.subplots(1, 2, figsize=plot_style.figsize(2))
     
     # Plot FPR
     for idx, method in enumerate(methods):
@@ -182,14 +185,11 @@ def plot_fdr_results(p_values, results_by_p, output_file):
         fpr_log10_stds = [results_by_p[p][method]["fpr_log10_std"] for p in p_values]
         
         axes[0].errorbar(p_values, fpr_log10_means, yerr=fpr_log10_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[0].set_xlabel('Downsample ratio (p)', fontsize=12)
-    axes[0].set_ylabel('log10(FPR)', fontsize=12)
-    axes[0].set_title('FPR vs Downsample Ratio', fontsize=14, fontweight='bold')
-    axes[0].grid(True, alpha=0.3)
-    axes[0].legend(loc='best', fontsize=10)
+    axes[0].set_xlabel(r'$p_\mathrm{sample}$')
+    axes[0].set_ylabel('log10(FPR)')
     
     # Plot FPR Filtered
     for idx, method in enumerate(methods):
@@ -197,16 +197,14 @@ def plot_fdr_results(p_values, results_by_p, output_file):
         fpr_filtered_log10_stds = [results_by_p[p][method]["fpr_filtered_log10_std"] for p in p_values]
         
         axes[1].errorbar(p_values, fpr_filtered_log10_means, yerr=fpr_filtered_log10_stds, 
-                        marker='o', capsize=5, capthick=2, label=method, 
-                        color=colors[idx], linewidth=2, markersize=6)
+                        label=method_label(method), 
+                        color=colors[idx], **plot_style.ERRORBAR)
     
-    axes[1].set_xlabel('Downsample ratio (p)', fontsize=12)
-    axes[1].set_ylabel('log10(FPR Filtered)', fontsize=12)
-    axes[1].set_title('FPR Filtered (|lfc| > 0.25) vs Downsample Ratio', fontsize=14, fontweight='bold')
-    axes[1].grid(True, alpha=0.3)
-    axes[1].legend(loc='best', fontsize=10)
+    axes[1].set_xlabel(r'$p_\mathrm{sample}$')
+    axes[1].set_ylabel('log10(FPR Filtered)')
     
     plt.tight_layout()
+    plot_style.legend_outside(fig)
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
@@ -226,8 +224,10 @@ if __name__ == '__main__':
                         help='Number of repetitions per p value (default: 100)')
     parser.add_argument('--n_jobs', type=int, default=None,
                         help='Number of parallel jobs (default: all available cores)')
-    parser.add_argument('--output', type=str, default='fdr_plot.png',
-                        help='Output file for the plot (default: fdr_plot.png)')
+    parser.add_argument('--seed', type=int, default=0,
+                        help='Seed for the per-repetition seeds (default: 0)')
+    parser.add_argument('--output', type=str, default=str(results_dir(__file__) / fig_name('fdr_plot')),
+                        help='Output file for the plot (default: kidney/results/fdr_plot.pdf)')
     parser.add_argument('--results_file', type=str, default=None,
                         help='Output file for results CSV (default: auto-generated from output name)')
     args = parser.parse_args()
@@ -292,6 +292,8 @@ if __name__ == '__main__':
     
     # Generate p values
     p_values = np.linspace(p_min, p_max, p_steps)
+    
+    np.random.seed(args.seed)
     
     # Run tests for each p value
     results_by_p = {}

@@ -8,12 +8,14 @@ using conditional Bernoulli draws. This ensures the gene universe is identical
 across all p values for a given replicate, making metrics directly comparable.
 
 Uses de_utils for DE (LN, t-test, wilcoxon, MAST) and evaluation_utils for
-all metrics (Jaccard, AUPRC, precision@k, avg |LFC|, n_sig_genes).
+all metrics (precision, recall, AUPRC, precision@k, avg |LFC|, n_sig_genes).
+Each cluster's significant upregulated genes are scored against its markers in
+the pseudo-bulk reference the config names (lymphnode/pseudobulk_reference.py).
 Input adata.X = raw counts (spot-level); after subsampling we aggregate to
 cell-level counts and run the same analysis as the celltype pipeline.
 
 Usage:
-    python run_subsampling_analysis_parallel.py --config config.yaml [--output-dir output/] [--n-workers 8]
+    python run_subsampling_analysis_parallel.py --config config.yaml [--output-dir lymphnode/results/] [--n-workers 8]
 
 Optional in config (defaults used if omitted):
   - min_cells_per_gene (int): genes must be expressed in at least that many cells in
@@ -54,7 +56,9 @@ except ImportError:
 
 import numpy as np
 
-from paths import require_input
+from paths import fig_name, require_input, results_dir
+import plot_style
+from method_colors import MEDIANPROPS, method_color, method_draw_order, method_label, method_order
 import pandas as pd
 import scanpy as sc
 import seaborn as sns
@@ -72,24 +76,22 @@ from de_utils import (
     run_mast_de,
 )
 from evaluation_utils import (
-    jaccard_top_adata,
-    jaccard_all_sig_adata,
+    get_all_sig_genes_adata,
+    get_all_sig_genes_df,
+    precision,
+    recall,
     aupr_adata,
     precision_at_k_adata,
     avg_abs_lfc_adata,
     n_sig_genes_adata,
     n_genes_de_table_adata,
     frac_de_genes_valid_score_adata,
-    jaccard_top_df,
-    jaccard_all_sig_df,
     aupr_df,
     precision_at_k_df,
     avg_abs_lfc_df,
     n_sig_genes_df,
     n_genes_de_table_df,
     frac_de_genes_valid_score_df,
-    gsea_nes_adata,
-    gsea_nes_df,
 )
 
 warnings.filterwarnings("ignore")
@@ -108,27 +110,54 @@ def _plot_box_pandas(df, x_col, y_col, hue_col, ax=None):
     if ax is None:
         ax = plt.gca()
     x_vals = sorted(df[x_col].dropna().unique(), key=str)
-    hue_vals = sorted(df[hue_col].dropna().unique(), key=str)
+    hue_vals = method_order(df[hue_col].dropna())
     n_hue = len(hue_vals)
     width = 0.7 / max(n_hue, 1)
+    rng = np.random.default_rng(0)
     for xi, x in enumerate(x_vals):
-        for hi, h in enumerate(hue_vals):
+        for h in method_draw_order(hue_vals):
+            hi = hue_vals.index(h)
             vals = df.loc[(df[x_col] == x) & (df[hue_col] == h), y_col].dropna()
             if len(vals) == 0:
                 continue
             pos = xi + (hi - (n_hue - 1) / 2) * width * 1.1
             bp = ax.boxplot(
                 [vals.values], positions=[pos], widths=width * 0.9,
-                patch_artist=True, showfliers=False,
+                patch_artist=True, showfliers=False, medianprops=MEDIANPROPS,
             )
             for box in bp["boxes"]:
-                box.set_facecolor(plt.cm.tab10(hi % 10))
+                box.set_facecolor(method_color(h))
+                box.set_edgecolor("none")
+            plot_style.strip(ax, pos, vals.values, method_color(h), width, rng)
     ax.set_xticks(range(len(x_vals)))
     ax.set_xticklabels([str(x) for x in x_vals])
-    from matplotlib.patches import Patch
-    handles = [Patch(facecolor=plt.cm.tab10(i % 10)) for i in range(len(hue_vals))]
-    ax.legend(handles=handles, labels=hue_vals, title=hue_col)
     return ax
+
+
+def method_legend(fig, df):
+    """One method key for the whole figure, right of its axes."""
+    from matplotlib.patches import Patch
+    methods = method_order(df["method"].dropna())
+    plot_style.legend_outside(fig, [Patch(facecolor=method_color(m)) for m in methods],
+                              [method_label(m) for m in methods])
+
+
+YLABELS = {"precision": "Precision", "recall": "Recall", "de_time_s": "DE time (s)", "auprc": "AUPRC"}  # in place of the column names
+
+
+def draw_pooled(ax, df, y_col, ylabel):
+    """One metric against p_sub, both compartments pooled, a box per method at each p_sub."""
+    _plot_box_pandas(df, "fraction", y_col, "method", ax=ax)
+    if y_col in ("auprc", "recall"):
+        ax.set_ylim(0, 1)   # as every AUPRC in the paper; precision keeps its own range, all near 1
+    ax.set_xlabel(r"$p_\mathrm{sub}$")
+    ax.set_ylabel(ylabel)
+    plot_style.boxplot_grid(ax)
+
+
+def runtime_table(df):
+    """One row per task and method: the DE time is shared by both compartments of a task."""
+    return df.drop_duplicates(subset=["fraction", "replicate", "method"])
 
 
 def load_config(config_path):
@@ -139,15 +168,27 @@ def load_config(config_path):
         "adata_path",
         "subsampling_fractions",
         "n_replicates",
-        "top_genes",
         "cluster_column",
         "cell_id_column",
-        "markers",
+        "reference",
     ]
     for field in required:
         if field not in config:
             raise ValueError(f"Missing required field in config: {field}")
     return config
+
+
+def reference_markers(path):
+    """Each cluster's reference markers, from the pseudo-bulk reference CSV."""
+    ref = pd.read_csv(require_input(path, what="the lymph node pseudo-bulk reference",
+                                    source="python -m lymphnode.pseudobulk_reference --config <this config>"))
+    ref = ref[ref["marker_of"].notna()]
+    return {cl: list(genes) for cl, genes in ref.groupby("marker_of")["gene"]}
+
+
+def precision_recall(signature, marker_set, tested):
+    """Precision of a method's calls, and recall of the markers among the tested genes."""
+    return precision(signature, marker_set), recall(signature, marker_set & tested)
 
 
 def find_valid_base_samplings(X_csr, cell_ids, clusters, var_names, fractions_sorted,
@@ -355,9 +396,7 @@ def init_worker(
     cluster_column,
     cell_id_column,
     markers,
-    top_genes,
     skip_mast=False,
-    skip_gsea=False,
     order_only=False,
     min_cells_per_gene=None,
     min_spots_per_cell=None,
@@ -385,9 +424,7 @@ def init_worker(
     _shared_data["cluster_column"] = cluster_column
     _shared_data["cell_id_column"] = cell_id_column
     _shared_data["markers"] = markers
-    _shared_data["top_genes"] = top_genes
     _shared_data["skip_mast"] = skip_mast
-    _shared_data["skip_gsea"] = skip_gsea
     _shared_data["order_only"] = order_only
     _shared_data["min_cells_per_gene"] = min_cells_per_gene
     _shared_data["min_spots_per_cell"] = min_spots_per_cell
@@ -400,7 +437,7 @@ def init_worker(
             _shared_data["base_samplings"] = pickle.load(f)
 
 
-def init_worker_load_from_path(adata_path, cluster_column, cell_id_column, markers, top_genes, skip_mast=False, skip_gsea=False, order_only=False, min_cells_per_gene=None, min_spots_per_cell=None, min_counts_after_subsampling=None, p_base=None, base_samplings_path=None, same_gene_sets_all_p=False, same_cells_all_p=False):
+def init_worker_load_from_path(adata_path, cluster_column, cell_id_column, markers, skip_mast=False, order_only=False, min_cells_per_gene=None, min_spots_per_cell=None, min_counts_after_subsampling=None, p_base=None, base_samplings_path=None, same_gene_sets_all_p=False, same_cells_all_p=False):
     """Initialize worker by loading adata from disk (fallback when shared_memory not available, e.g. Python 3.7)."""
     global _shared_data
     _limit_threads()
@@ -428,9 +465,7 @@ def init_worker_load_from_path(adata_path, cluster_column, cell_id_column, marke
     _shared_data["cluster_column"] = cluster_column
     _shared_data["cell_id_column"] = cell_id_column
     _shared_data["markers"] = markers
-    _shared_data["top_genes"] = top_genes
     _shared_data["skip_mast"] = skip_mast
-    _shared_data["skip_gsea"] = skip_gsea
     _shared_data["order_only"] = order_only
     _shared_data["min_cells_per_gene"] = min_cells_per_gene
     _shared_data["min_spots_per_cell"] = min_spots_per_cell
@@ -465,9 +500,7 @@ def process_task(task):
     cluster_column = _shared_data["cluster_column"]
     cell_id_column = _shared_data["cell_id_column"]
     markers = _shared_data["markers"]
-    top_genes = _shared_data["top_genes"]
     skip_mast = _shared_data.get("skip_mast", False)
-    skip_gsea = _shared_data.get("skip_gsea", False)
     order_only = _shared_data.get("order_only", False)
     min_spots_per_cell = _shared_data.get("min_spots_per_cell", DEFAULT_MIN_SPOTS_PER_CELL)
     min_counts_after_subsampling = _shared_data.get("min_counts_after_subsampling", DEFAULT_MIN_COUNTS_AFTER_SUBSAMPLING)
@@ -641,6 +674,7 @@ def process_task(task):
         time_mast_s = time.time() - t_mast
 
     cluster_list = sorted(adata_agg.obs[cluster_column].unique())
+    tested = set(adata_agg.var_names)
     records = []
 
     for cluster in cluster_list:
@@ -653,25 +687,18 @@ def process_task(task):
         # LN test
         avg_lfc_ln = avg_abs_lfc_adata(adata_agg, cluster, key="ln_test", pval_threshold=PVAL_THRESHOLD)
         n_sig_ln = n_sig_genes_adata(adata_agg, cluster, key="ln_test", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
-        jt = jaccard_top_adata(adata_agg, cluster, marker_set, top_genes, key="ln_test", pval_threshold=PVAL_THRESHOLD)
-        ja = jaccard_all_sig_adata(adata_agg, cluster, marker_set, key="ln_test", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
+        sig = get_all_sig_genes_adata(adata_agg, cluster, key="ln_test", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
+        prec, rec = precision_recall(sig, marker_set, tested)
         au = aupr_adata(adata_agg, cluster, marker_set, key="ln_test", order_only=order_only)
         pk = precision_at_k_adata(adata_agg, cluster, marker_set, K_VALUES, key="ln_test")
-        if skip_gsea:
-            gsea_ln = np.nan
-        else:
-            try:
-                gsea_ln = gsea_nes_adata(adata_agg, cluster, marker_set, key="ln_test", order_only=order_only)
-            except Exception:
-                gsea_ln = np.nan
         n_genes_ln = n_genes_de_table_adata(adata_agg, cluster, key="ln_test")
         frac_valid_ln = frac_de_genes_valid_score_adata(adata_agg, cluster, key="ln_test")
         records.append({
             "cluster": cluster, "method": "LN test",
-            "jaccard_top": jt, "jaccard_all": ja, "auprc": au,
+            "precision": prec, "recall": rec, "auprc": au,
             "precision_at_10": pk.get(10, np.nan), "precision_at_20": pk.get(20, np.nan),
             "precision_at_50": pk.get(50, np.nan), "precision_at_100": pk.get(100, np.nan),
-            "avg_abs_lfc": avg_lfc_ln, "n_sig_genes": n_sig_ln, "gsea_nes": gsea_ln,
+            "avg_abs_lfc": avg_lfc_ln, "n_sig_genes": n_sig_ln,
             "n_genes_de_table": n_genes_ln, "frac_de_genes_valid_score": frac_valid_ln,
             "de_time_s": time_ln_s,
             "fraction": fraction, "replicate": replicate,
@@ -681,25 +708,18 @@ def process_task(task):
         # t-test
         avg_lfc_tt = avg_abs_lfc_adata(adata_agg, cluster, key="t_test", pval_threshold=PVAL_THRESHOLD)
         n_sig_tt = n_sig_genes_adata(adata_agg, cluster, key="t_test", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
-        jt = jaccard_top_adata(adata_agg, cluster, marker_set, top_genes, key="t_test", pval_threshold=PVAL_THRESHOLD)
-        ja = jaccard_all_sig_adata(adata_agg, cluster, marker_set, key="t_test", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
+        sig = get_all_sig_genes_adata(adata_agg, cluster, key="t_test", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
+        prec, rec = precision_recall(sig, marker_set, tested)
         au = aupr_adata(adata_agg, cluster, marker_set, key="t_test", order_only=order_only)
         pk = precision_at_k_adata(adata_agg, cluster, marker_set, K_VALUES, key="t_test")
-        if skip_gsea:
-            gsea_tt = np.nan
-        else:
-            try:
-                gsea_tt = gsea_nes_adata(adata_agg, cluster, marker_set, key="t_test", order_only=order_only)
-            except Exception:
-                gsea_tt = np.nan
         n_genes_tt = n_genes_de_table_adata(adata_agg, cluster, key="t_test")
         frac_valid_tt = frac_de_genes_valid_score_adata(adata_agg, cluster, key="t_test")
         records.append({
             "cluster": cluster, "method": "t-test",
-            "jaccard_top": jt, "jaccard_all": ja, "auprc": au,
+            "precision": prec, "recall": rec, "auprc": au,
             "precision_at_10": pk.get(10, np.nan), "precision_at_20": pk.get(20, np.nan),
             "precision_at_50": pk.get(50, np.nan), "precision_at_100": pk.get(100, np.nan),
-            "avg_abs_lfc": avg_lfc_tt, "n_sig_genes": n_sig_tt, "gsea_nes": gsea_tt,
+            "avg_abs_lfc": avg_lfc_tt, "n_sig_genes": n_sig_tt,
             "n_genes_de_table": n_genes_tt, "frac_de_genes_valid_score": frac_valid_tt,
             "de_time_s": time_ttest_s,
             "fraction": fraction, "replicate": replicate,
@@ -709,22 +729,18 @@ def process_task(task):
         # Wilcoxon
         avg_lfc_w = avg_abs_lfc_adata(adata_agg, cluster, key="wilcoxon", pval_threshold=PVAL_THRESHOLD)
         n_sig_w = n_sig_genes_adata(adata_agg, cluster, key="wilcoxon", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
-        jt = jaccard_top_adata(adata_agg, cluster, marker_set, top_genes, key="wilcoxon", pval_threshold=PVAL_THRESHOLD)
-        ja = jaccard_all_sig_adata(adata_agg, cluster, marker_set, key="wilcoxon", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
+        sig = get_all_sig_genes_adata(adata_agg, cluster, key="wilcoxon", pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
+        prec, rec = precision_recall(sig, marker_set, tested)
         au = aupr_adata(adata_agg, cluster, marker_set, key="wilcoxon", order_only=order_only)
         pk = precision_at_k_adata(adata_agg, cluster, marker_set, K_VALUES, key="wilcoxon")
-        try:
-            gsea_w = gsea_nes_adata(adata_agg, cluster, marker_set, key="wilcoxon", order_only=order_only)
-        except Exception:
-            gsea_w = np.nan
         n_genes_w = n_genes_de_table_adata(adata_agg, cluster, key="wilcoxon")
         frac_valid_w = frac_de_genes_valid_score_adata(adata_agg, cluster, key="wilcoxon")
         records.append({
             "cluster": cluster, "method": "Wilcoxon",
-            "jaccard_top": jt, "jaccard_all": ja, "auprc": au,
+            "precision": prec, "recall": rec, "auprc": au,
             "precision_at_10": pk.get(10, np.nan), "precision_at_20": pk.get(20, np.nan),
             "precision_at_50": pk.get(50, np.nan), "precision_at_100": pk.get(100, np.nan),
-            "avg_abs_lfc": avg_lfc_w, "n_sig_genes": n_sig_w, "gsea_nes": gsea_w,
+            "avg_abs_lfc": avg_lfc_w, "n_sig_genes": n_sig_w,
             "n_genes_de_table": n_genes_w, "frac_de_genes_valid_score": frac_valid_w,
             "de_time_s": time_wilcoxon_s,
             "fraction": fraction, "replicate": replicate,
@@ -736,22 +752,18 @@ def process_task(task):
             mast_df = mast_results.get(str(cluster), None)
             avg_lfc_mast = avg_abs_lfc_df(mast_df, pval_threshold=PVAL_THRESHOLD)
             n_sig_mast = n_sig_genes_df(mast_df, pval_threshold=PVAL_THRESHOLD, positive_score_only=True) if mast_df is not None and len(mast_df) > 0 else 0
-            jt = jaccard_top_df(mast_df, marker_set, top_genes, pval_threshold=PVAL_THRESHOLD) if mast_df is not None and len(mast_df) > 0 else np.nan
-            ja = jaccard_all_sig_df(mast_df, marker_set, pval_threshold=PVAL_THRESHOLD, positive_score_only=True) if mast_df is not None and len(mast_df) > 0 else np.nan
+            sig = get_all_sig_genes_df(mast_df, pval_threshold=PVAL_THRESHOLD, positive_score_only=True)
+            prec, rec = precision_recall(sig, marker_set, tested)
             au = aupr_df(mast_df, marker_set, order_only=order_only) if mast_df is not None and len(mast_df) > 0 else np.nan
             pk = precision_at_k_df(mast_df, marker_set, K_VALUES) if mast_df is not None and len(mast_df) > 0 else {k: np.nan for k in K_VALUES}
-            try:
-                gsea_mast = gsea_nes_df(mast_df, marker_set, order_only=order_only) if mast_df is not None and len(mast_df) > 0 else np.nan
-            except Exception:
-                gsea_mast = np.nan
             n_genes_mast = n_genes_de_table_df(mast_df) if mast_df is not None and len(mast_df) > 0 else 0
             frac_valid_mast = frac_de_genes_valid_score_df(mast_df) if mast_df is not None and len(mast_df) > 0 else np.nan
             records.append({
                 "cluster": cluster, "method": "MAST",
-                "jaccard_top": jt, "jaccard_all": ja, "auprc": au,
+                "precision": prec, "recall": rec, "auprc": au,
                 "precision_at_10": pk.get(10, np.nan), "precision_at_20": pk.get(20, np.nan),
                 "precision_at_50": pk.get(50, np.nan), "precision_at_100": pk.get(100, np.nan),
-                "avg_abs_lfc": avg_lfc_mast, "n_sig_genes": n_sig_mast, "gsea_nes": gsea_mast,
+                "avg_abs_lfc": avg_lfc_mast, "n_sig_genes": n_sig_mast,
                 "n_genes_de_table": n_genes_mast, "frac_de_genes_valid_score": frac_valid_mast,
                 "de_time_s": time_mast_s,
                 "fraction": fraction, "replicate": replicate,
@@ -763,15 +775,145 @@ def process_task(task):
     return records, task_time
 
 
+def plot_results(df_results, output_dir):
+    """Every figure, from the per-replicate results table."""
+    plot_style.use()
+    # Metrics to plot; each gets a combined plot and a per-cluster faceted plot
+    plot_metrics = [
+        ("precision", "precision.png"),
+        ("recall", "recall.png"),
+        ("auprc", "auprc.png"),
+    ]
+    for y_col, fname in plot_metrics:
+        if y_col not in df_results.columns:
+            continue
+        # Combined (all clusters) - use pandas/matplotlib to avoid seaborn boxplot bugs
+        fig, ax = plt.subplots(figsize=(7.2, 2.6))
+        draw_pooled(ax, df_results, y_col, YLABELS.get(y_col, y_col))
+        plt.tight_layout()
+        method_legend(plt.gcf(), df_results)
+        plot_style.rasterize_dense(plt.gcf())
+        plt.savefig(fig_name(os.path.join(output_dir, fname)), dpi=300, bbox_inches="tight")
+        plt.close()
+        # Per-cluster: one panel per cluster
+        clusters = sorted(df_results["cluster"].unique())
+        fig, axes = plt.subplots(1, len(clusters), figsize=(3.6 * len(clusters), 2.6), sharey=True)
+        if len(clusters) == 1:
+            axes = [axes]
+        for ax, cl in zip(axes, clusters):
+            sub = df_results[df_results["cluster"] == cl]
+            _plot_box_pandas(sub, "fraction", y_col, "method", ax=ax)
+            ax.set_title(str(cl))
+            ax.set_xlabel(r"$p_\mathrm{sub}$")
+            plot_style.boxplot_grid(ax)
+        axes[0].set_ylabel(YLABELS.get(y_col, y_col))
+        plt.tight_layout()
+        method_legend(plt.gcf(), df_results)
+        plot_style.rasterize_dense(plt.gcf())
+        plt.savefig(fig_name(os.path.join(output_dir, fname.replace(".png", "_by_cluster.png"))), dpi=300, bbox_inches="tight")
+        plt.close()
+    # Precision@k multi-panel (combined)
+    fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.2))
+    for ax, k in zip(axes.flat, [10, 20, 50, 100]):
+        col = f"precision_at_{k}"
+        if col in df_results.columns:
+            _plot_box_pandas(df_results, "fraction", col, "method", ax=ax)
+            ax.set_ylabel(f"Precision@{k}")
+        ax.set_xlabel(r"$p_\mathrm{sub}$")
+        plot_style.boxplot_grid(ax)
+    plt.tight_layout()
+    method_legend(plt.gcf(), df_results)
+    plot_style.rasterize_dense(plt.gcf())
+    plt.savefig(fig_name(os.path.join(output_dir, "precision_at_k.png")), dpi=300, bbox_inches="tight")
+    plt.close()
+    # Precision@k by cluster
+    for k in [10, 20, 50, 100]:
+        col = f"precision_at_{k}"
+        if col not in df_results.columns:
+            continue
+        clusters = sorted(df_results["cluster"].unique())
+        fig, axes = plt.subplots(1, len(clusters), figsize=(3.6 * len(clusters), 2.6), sharey=True)
+        if len(clusters) == 1:
+            axes = [axes]
+        for ax, cl in zip(axes, clusters):
+            sub = df_results[df_results["cluster"] == cl]
+            _plot_box_pandas(sub, "fraction", col, "method", ax=ax)
+            ax.set_title(str(cl))
+            ax.set_xlabel(r"$p_\mathrm{sub}$")
+            ax.set_ylabel(f"Precision@{k}")
+            plot_style.boxplot_grid(ax)
+        plt.tight_layout()
+        method_legend(plt.gcf(), df_results)
+        plot_style.rasterize_dense(plt.gcf())
+        plt.savefig(fig_name(os.path.join(output_dir, f"precision_at_{k}_by_cluster.png")), dpi=300, bbox_inches="tight")
+        plt.close()
+    df_lfc = df_results.drop_duplicates(subset=["fraction", "replicate", "method", "cluster"])
+    for y_col, fname in [
+        ("avg_abs_lfc", "avg_abs_lfc.png"),
+        ("n_sig_genes", "n_sig_genes.png"),
+        ("n_genes_de_table", "n_genes_de_table.png"),
+        ("n_genes_used", "n_genes_used.png"),
+        ("frac_de_genes_valid_score", "frac_de_genes_valid_score.png"),
+        ("n_cells_cluster", "n_cells_cluster.png"),
+        ("n_cells_other", "n_cells_other.png"),
+    ]:
+        if y_col not in df_lfc.columns:
+            continue
+        fig, ax = plt.subplots(figsize=(7.2, 2.6))
+        _plot_box_pandas(df_lfc, "fraction", y_col, "method", ax=ax)
+        ax.set_xlabel(r"$p_\mathrm{sub}$")
+        ax.set_ylabel(y_col)
+        plot_style.boxplot_grid(ax)
+        plt.tight_layout()
+        method_legend(plt.gcf(), df_results)
+        plot_style.rasterize_dense(plt.gcf())
+        plt.savefig(fig_name(os.path.join(output_dir, fname)), dpi=300, bbox_inches="tight")
+        plt.close()
+        # Per-cluster
+        clusters = sorted(df_lfc["cluster"].unique())
+        fig, axes = plt.subplots(1, len(clusters), figsize=(3.6 * len(clusters), 2.6), sharey=True)
+        if len(clusters) == 1:
+            axes = [axes]
+        for ax, cl in zip(axes, clusters):
+            sub = df_lfc[df_lfc["cluster"] == cl]
+            _plot_box_pandas(sub, "fraction", y_col, "method", ax=ax)
+            ax.set_title(str(cl))
+            ax.set_xlabel(r"$p_\mathrm{sub}$")
+            plot_style.boxplot_grid(ax)
+        axes[0].set_ylabel(y_col)
+        plt.tight_layout()
+        method_legend(plt.gcf(), df_results)
+        plot_style.rasterize_dense(plt.gcf())
+        plt.savefig(fig_name(os.path.join(output_dir, fname.replace(".png", "_by_cluster.png"))), dpi=300, bbox_inches="tight")
+        plt.close()
+    # DE time per method (one value per task per method)
+    if "de_time_s" in df_results.columns:
+        fig, ax = plt.subplots(figsize=(7.2, 2.6))
+        draw_pooled(ax, runtime_table(df_results), "de_time_s", YLABELS["de_time_s"])
+        plt.tight_layout()
+        method_legend(plt.gcf(), df_results)
+        plot_style.rasterize_dense(plt.gcf())
+        plt.savefig(fig_name(os.path.join(output_dir, "runtime.png")), dpi=300, bbox_inches="tight")
+        plt.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Parallelized sub-sampling analysis with nested Binomial sampling")
     parser.add_argument("--config", type=str, required=True, help="Path to YAML config")
-    parser.add_argument("--output-dir", type=str, default="output_subsampling_parallel", help="Output directory")
+    parser.add_argument("--output-dir", type=str, default=str(results_dir(__file__)), help="Output directory (default: lymphnode/results)")
     parser.add_argument("--n-workers", type=int, default=8, help="Number of parallel workers")
     parser.add_argument("--skip-mast", action="store_true", help="Skip MAST DE (faster runs for debugging)")
-    parser.add_argument("--skip-gsea", action="store_true", help="Skip GSEA NES (avoids gseapy errors/noise)")
-    parser.add_argument("--order-only", action="store_true", help="Use only rank order for AUPR/GSEA (replace scores with ranks)")
+    parser.add_argument("--order-only", action="store_true", help="Use only rank order for AUPR (replace scores with ranks)")
+    parser.add_argument("--plot-only", action="store_true",
+                        help="Redraw the figures from OUTPUT_DIR/subsampling_results_raw.csv without re-running")
     args = parser.parse_args()
+
+    if args.plot_only:
+        raw = require_input(os.path.join(args.output_dir, "subsampling_results_raw.csv"),
+                            what="the lymph node subsampling results",
+                            source="run `python -m lymphnode.subsampling --config ...` first")
+        plot_results(pd.read_csv(raw), args.output_dir)
+        return
 
     print("\n" + "=" * 80)
     print("PARALLELIZED SUB-SAMPLING ANALYSIS -- NESTED BINOMIAL DESIGN")
@@ -779,6 +921,7 @@ def main():
     print(f"Using {args.n_workers} workers, DE and metrics from de_utils / evaluation_utils")
 
     config = load_config(args.config)
+    markers = reference_markers(config["reference"])
     os.makedirs(args.output_dir, exist_ok=True)
     min_spots_per_cell = config.get("min_spots_per_cell", DEFAULT_MIN_SPOTS_PER_CELL)
     min_counts_after_subsampling = config.get("min_counts_after_subsampling", DEFAULT_MIN_COUNTS_AFTER_SUBSAMPLING)
@@ -800,7 +943,7 @@ def main():
     if args.skip_mast:
         print("  --skip-mast: MAST DE disabled (faster run)")
     if args.order_only:
-        print("  --order-only: AUPR/GSEA use rank order only (ignore score magnitude)")
+        print("  --order-only: AUPR uses rank order only (ignore score magnitude)")
     if min_cells_per_gene is not None and min_cells_per_gene > 0:
         print(f"  min_cells_per_gene: {min_cells_per_gene}")
     if not USE_SHARED_MEMORY:
@@ -876,8 +1019,8 @@ def main():
             data_arr.shape, data_arr.dtype, indices_arr.shape, indices_arr.dtype,
             indptr_arr.shape, indptr_arr.dtype, cell_ids_padded.shape, clusters_padded.shape,
             X_csr.shape, var_names_list, config["cluster_column"], config["cell_id_column"],
-            config["markers"], config["top_genes"],
-            args.skip_mast, args.skip_gsea, args.order_only,
+            markers,
+            args.skip_mast, args.order_only,
             min_cells_per_gene,
             min_spots_per_cell,
             min_counts_after_subsampling,
@@ -892,8 +1035,8 @@ def main():
         init_args = (
             config["adata_path"],
             config["cluster_column"], config["cell_id_column"],
-            config["markers"], config["top_genes"],
-            args.skip_mast, args.skip_gsea, args.order_only,
+            markers,
+            args.skip_mast, args.order_only,
             min_cells_per_gene,
             min_spots_per_cell,
             min_counts_after_subsampling,
@@ -942,11 +1085,13 @@ def main():
 
     # ---- Save results ----
     df_results = pd.DataFrame(all_records)
+    df_results = df_results.sort_values(["fraction", "replicate", "cluster", "method"]).reset_index(drop=True)
     print(f"\n[6/8] Saving results to {args.output_dir}/...")
     df_results.to_csv(os.path.join(args.output_dir, "subsampling_results_raw.csv"), index=False)
     agg_cols = {
-        "jaccard_top": ["mean", "std"],
-        "jaccard_all": ["mean", "std"],
+        "precision": ["mean", "std"],
+        "recall": ["mean", "std"],
+        "auprc": ["mean", "std"],
         "avg_abs_lfc": ["mean", "std"],
         "n_sig_genes": ["mean", "std"],
         "n_genes_de_table": ["mean", "std"],
@@ -956,8 +1101,6 @@ def main():
         "frac_de_genes_valid_score": ["mean", "std"],
         "de_time_s": ["mean", "std"],
     }
-    if "gsea_nes" in df_results.columns:
-        agg_cols["gsea_nes"] = ["mean", "std"]
     df_agg = df_results.groupby(["fraction", "method", "cluster"]).agg(agg_cols).reset_index()
     df_agg.columns = ["_".join(c).strip("_") for c in df_agg.columns]
     df_agg.to_csv(os.path.join(args.output_dir, "subsampling_results_aggregated.csv"), index=False)
@@ -981,130 +1124,7 @@ def main():
 
     # ---- Plots ----
     print(f"\n[7/8] Generating plots (per-cluster and combined)...")
-    # Metrics to plot; each gets a combined plot and a per-cluster faceted plot
-    plot_metrics = [
-        ("jaccard_top", "jaccard_top_vs_subsampling.png"),
-        ("jaccard_all", "jaccard_all_vs_subsampling.png"),
-        ("auprc", "auprc_vs_subsampling.png"),
-    ]
-    if "gsea_nes" in df_results.columns:
-        plot_metrics.append(("gsea_nes", "gsea_nes_vs_subsampling.png"))
-    for y_col, fname in plot_metrics:
-        if y_col not in df_results.columns:
-            continue
-        # Combined (all clusters) - use pandas/matplotlib to avoid seaborn boxplot bugs
-        fig, ax = plt.subplots(figsize=(12, 6))
-        _plot_box_pandas(df_results, "fraction", y_col, "method", ax=ax)
-        ax.set_xlabel("Sub-sampling fraction (p)")
-        ax.set_ylabel(y_col)
-        ax.grid(True, axis="y", alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(os.path.join(args.output_dir, fname), dpi=300)
-        plt.close()
-        # Per-cluster: one panel per cluster
-        clusters = sorted(df_results["cluster"].unique())
-        fig, axes = plt.subplots(1, len(clusters), figsize=(6 * len(clusters), 5), sharey=True)
-        if len(clusters) == 1:
-            axes = [axes]
-        for ax, cl in zip(axes, clusters):
-            sub = df_results[df_results["cluster"] == cl]
-            _plot_box_pandas(sub, "fraction", y_col, "method", ax=ax)
-            ax.set_title(str(cl))
-            ax.set_xlabel("Sub-sampling fraction (p)")
-            ax.grid(True, axis="y", alpha=0.3)
-        axes[0].set_ylabel(y_col)
-        plt.tight_layout()
-        plt.savefig(os.path.join(args.output_dir, fname.replace(".png", "_by_cluster.png")), dpi=300)
-        plt.close()
-    # Precision@k multi-panel (combined)
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    for ax, k in zip(axes.flat, [10, 20, 50, 100]):
-        col = f"precision_at_{k}"
-        if col in df_results.columns:
-            _plot_box_pandas(df_results, "fraction", col, "method", ax=ax)
-            ax.set_ylabel(f"Precision@{k}")
-        ax.set_xlabel("Sub-sampling fraction (p)")
-        ax.grid(True, axis="y", alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(args.output_dir, "precision_at_k_vs_subsampling.png"), dpi=300)
-    plt.close()
-    # Precision@k by cluster
-    for k in [10, 20, 50, 100]:
-        col = f"precision_at_{k}"
-        if col not in df_results.columns:
-            continue
-        clusters = sorted(df_results["cluster"].unique())
-        fig, axes = plt.subplots(1, len(clusters), figsize=(6 * len(clusters), 4), sharey=True)
-        if len(clusters) == 1:
-            axes = [axes]
-        for ax, cl in zip(axes, clusters):
-            sub = df_results[df_results["cluster"] == cl]
-            _plot_box_pandas(sub, "fraction", col, "method", ax=ax)
-            ax.set_title(str(cl))
-            ax.set_xlabel("Sub-sampling fraction (p)")
-            ax.set_ylabel(f"Precision@{k}")
-            ax.grid(True, axis="y", alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(os.path.join(args.output_dir, f"precision_at_{k}_vs_subsampling_by_cluster.png"), dpi=300)
-        plt.close()
-    # AUPRC vs Jaccard scatter
-    plt.figure(figsize=(10, 8))
-    for method in df_results["method"].unique():
-        subset = df_results[df_results["method"] == method]
-        plt.scatter(subset["jaccard_top"], subset["auprc"], alpha=0.3, label=method, s=20)
-    plt.xlabel(f"Jaccard (top {config['top_genes']} genes)")
-    plt.ylabel("AUPRC")
-    plt.legend(title="Method")
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(args.output_dir, "auprc_vs_jaccard_scatter.png"), dpi=300)
-    plt.close()
-    df_lfc = df_results.drop_duplicates(subset=["fraction", "replicate", "method", "cluster"])
-    for y_col, fname in [
-        ("avg_abs_lfc", "avg_lfc_vs_subsampling.png"),
-        ("n_sig_genes", "n_sig_genes_vs_subsampling.png"),
-        ("n_genes_de_table", "n_genes_de_table_vs_subsampling.png"),
-        ("n_genes_used", "n_genes_used_vs_subsampling.png"),
-        ("frac_de_genes_valid_score", "frac_de_genes_valid_score_vs_subsampling.png"),
-        ("n_cells_cluster", "n_cells_cluster_vs_subsampling.png"),
-        ("n_cells_other", "n_cells_other_vs_subsampling.png"),
-    ]:
-        if y_col not in df_lfc.columns:
-            continue
-        fig, ax = plt.subplots(figsize=(10, 6))
-        _plot_box_pandas(df_lfc, "fraction", y_col, "method", ax=ax)
-        ax.set_xlabel("Sub-sampling fraction (p)")
-        ax.set_ylabel(y_col)
-        ax.grid(True, axis="y", alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(os.path.join(args.output_dir, fname), dpi=300)
-        plt.close()
-        # Per-cluster
-        clusters = sorted(df_lfc["cluster"].unique())
-        fig, axes = plt.subplots(1, len(clusters), figsize=(6 * len(clusters), 5), sharey=True)
-        if len(clusters) == 1:
-            axes = [axes]
-        for ax, cl in zip(axes, clusters):
-            sub = df_lfc[df_lfc["cluster"] == cl]
-            _plot_box_pandas(sub, "fraction", y_col, "method", ax=ax)
-            ax.set_title(str(cl))
-            ax.set_xlabel("Sub-sampling fraction (p)")
-            ax.grid(True, axis="y", alpha=0.3)
-        axes[0].set_ylabel(y_col)
-        plt.tight_layout()
-        plt.savefig(os.path.join(args.output_dir, fname.replace(".png", "_by_cluster.png")), dpi=300)
-        plt.close()
-    # DE time per method (one value per task per method)
-    if "de_time_s" in df_results.columns:
-        df_time = df_results.drop_duplicates(subset=["fraction", "replicate", "method"])
-        fig, ax = plt.subplots(figsize=(10, 6))
-        _plot_box_pandas(df_time, "fraction", "de_time_s", "method", ax=ax)
-        ax.set_xlabel("Sub-sampling fraction (p)")
-        ax.set_ylabel("DE time (s)")
-        ax.grid(True, axis="y", alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(os.path.join(args.output_dir, "de_time_s_vs_subsampling.png"), dpi=300)
-        plt.close()
+    plot_results(df_results, args.output_dir)
 
     # ---- Summary ----
     print(f"\n[8/8] Summary")
@@ -1115,10 +1135,9 @@ def main():
     for cluster_id in df_results["cluster"].unique():
         sub = df_results[df_results["cluster"] == cluster_id]
         print(f"\n--- Cluster: {cluster_id} ---")
-        print(sub.groupby(["fraction", "method"])["jaccard_top"].mean().unstack().to_string())
-    if "gsea_nes" in df_results.columns:
-        print("\nGSEA NES (mean) by cluster and method:")
-        print(df_results.groupby(["cluster", "fraction", "method"])["gsea_nes"].mean().unstack().to_string())
+        for metric in ["precision", "recall"]:
+            print(f"{metric} (mean):")
+            print(sub.groupby(["fraction", "method"])[metric].mean().unstack().to_string())
     if "de_time_s" in df_results.columns:
         df_time = df_results.drop_duplicates(subset=["fraction", "replicate", "method"])
         print("\nMean DE time (s) by method:")

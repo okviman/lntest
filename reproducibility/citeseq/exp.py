@@ -2,35 +2,21 @@ import os
 import pathlib
 
 from paths import data_dir, require_input, results_dir
+import plot_style
+from citeseq.plots import SCANPY_LOG1P, scatter_panels
+from method_colors import method_color, method_label
 import anndata as ann
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from lntest import get_LN_lfcs as get_DELN_lfcs
 import statsmodels.stats.multitest as smm
 from baselines import get_test_results, scanpy_sig_test
 from tqdm import tqdm
 
-def plot(ax, true_lfc, est_lfc, title, xlims, ylims, ylabel=False):
-    ax.scatter(true_lfc, est_lfc)
-    ax.set_xlim(xlims)
-    ax.set_ylim(ylims)
-    global_min = np.min([xlims[0], ylims[0]])
-    global_max = np.max([xlims[1], ylims[1]])
-    ax.plot([global_min, global_max], 
-            [global_min, global_max], 'r--', label='Identity Line (y=x)')
-    ax.set_xlabel("True Log2 Fold Change", fontsize=12)
-    if ylabel:
-        ax.set_ylabel("Estimated Log2 Fold Change (lfc)", fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight='bold')
-    ax.legend()
-    ax.grid(True)
-    ax.set_aspect('equal', adjustable='box')
-
-
 # Load the base data
 DATA = data_dir(__file__)
 RESULTS = results_dir(__file__)
+plot_style.use()
 memory_CD4 = ann.read_h5ad(require_input(
     DATA / "memory_CD4.h5ad",
     what="memory CD4 T cells from the 10x PBMC10k CITE-seq run, ADT-gated",
@@ -108,10 +94,10 @@ for i in tqdm(range(replicates), desc="Running replicates"):
     # Method 1: DELN
     lfcs_deln, pvals_deln, se_deln = get_DELN_lfcs(
         X_data_filtered, Y_data_filtered, return_standard_error=True)
-    adj_pvals_deln = smm.multipletests(pvals_deln, alpha=0.05, method='fdr_bh')[1]
+    adj_pvals_deln = smm.multipletests(pvals_deln, alpha=0.05, method='bonferroni')[1]
 
     # Method 2: Wilcoxon
-    corr_method="benjamini-hochberg"
+    corr_method="bonferroni"
     lfcs_w, adj_pvals_w = scanpy_sig_test(X_data_filtered, Y_data_filtered, method="wilcoxon", corr_method=corr_method)
     lfcs_scanpy = -lfcs_w.to_numpy()
 
@@ -145,27 +131,22 @@ for i in tqdm(range(replicates), desc="Running replicates"):
     metrics_df["replicate"] = i
     metrics_list.append(metrics_df)
 
-    # 8. Generate a figure of estimated vs true fold change. 
+    # 8. Generate a figure of estimated vs true fold change.
     # Check these figures to make sure the runs were successful.
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 7))
-    all_vals = np.concatenate([
-        de_results["ln_lfc"],
-        de_results["scanpy_lfc"]
-    ])
-    ylims = [np.min(all_vals) - 0.2, np.max(all_vals) + 0.2]
-    xlims = [np.min(de_results["true_lfc"]) - 0.2, np.max(de_results["true_lfc"]) + 0.2]
-    plot(ax1, de_results['true_lfc'], de_results['ln_lfc'], "LN vs. True LFC", xlims, ylims, ylabel=True)
-    plot(ax2, de_results['true_lfc'], de_results['scanpy_lfc'], "Scanpy vs. True LFC", xlims, ylims, ylabel=False)
-    fig.savefig(RESULTS / "figures" / f"lfc_{i}.png")
-    plt.close(fig)
+    scatter_panels(de_results['true_lfc'],
+                   [(method_label('LN'), method_color('LN'), de_results['ln_lfc']),
+                    (SCANPY_LOG1P, method_color('t-test'), de_results['scanpy_lfc'])],
+                   f'figures/lfc_{i}', verbose=False)
 
     # 9. Save the data so that we can run using Seurat in R.
     rep_path = f"{RESULTS}/replicates/rep{i}/"
     os.makedirs(rep_path, exist_ok=True)
     np.savetxt(f"{rep_path}/gene_names.csv", filtered_gene_names, delimiter=",", fmt="%s")
     np.savetxt(f"{rep_path}/true_lfcs.csv", true_lfcs_filtered, delimiter=",")
-    np.savetxt(f"{rep_path}/X.csv", X_data_filtered, delimiter=",", fmt="%i")
-    np.savetxt(f"{rep_path}/Y.csv", Y_data_filtered, delimiter=",", fmt="%i")
+    # Full precision: the planted fold changes leave fractional counts, and Seurat must see the
+    # same values as the other methods. "%i" truncated them, sending down-regulated counts to 0.
+    np.savetxt(f"{rep_path}/X.csv", X_data_filtered, delimiter=",", fmt="%.17g")
+    np.savetxt(f"{rep_path}/Y.csv", Y_data_filtered, delimiter=",", fmt="%.17g")
 
 print("...Simulation finished.")
 

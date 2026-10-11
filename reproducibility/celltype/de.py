@@ -6,7 +6,7 @@ This script runs DE using both LN test and Scanpy's t-test (and wilcoxon) and MA
 saving all results to the updated AnnData file. Uses shared de_utils for all DE steps.
 
 Usage:
-    python run_celltype_de.py --config config.yaml [--output-dir output/]
+    python run_celltype_de.py --config config.yaml [--output-dir celltype/results/]
 """
 
 import argparse
@@ -17,7 +17,7 @@ import scanpy as sc
 import scipy.sparse as sp
 import pandas as pd
 
-from paths import require_input
+from paths import require_input, results_dir
 
 # Run from reproducibility/ as `python -m celltype.de`, which puts that
 # directory on sys.path -- no path manipulation needed.
@@ -40,6 +40,12 @@ def load_config(config_path):
             raise ValueError(f"Missing required field in config: {field}")
     if not isinstance(config["celltype_values"], (list, tuple)) or len(config["celltype_values"]) != 2:
         raise ValueError("celltype_values must be a list of two values: [celltype_1, celltype_2]")
+    merge = config.get("celltype_merge") or {}
+    if not isinstance(merge, dict) or not all(isinstance(v, list) for v in merge.values()):
+        raise ValueError("celltype_merge must map a new label to a list of existing labels")
+    subset = config.get("subset") or {}
+    if not isinstance(subset, dict):
+        raise ValueError("subset must map an obs column to the single value to keep")
     return config
 
 
@@ -48,7 +54,7 @@ def main():
         description="Perform differential expression analysis between two specified cell types"
     )
     parser.add_argument("--config", type=str, required=True, help="Path to YAML configuration file")
-    parser.add_argument("--output-dir", type=str, default="output", help="Directory to save output files")
+    parser.add_argument("--output-dir", type=str, default=str(results_dir(__file__)), help="Directory to save output files (default: celltype/results)")
     args = parser.parse_args()
 
     print(f"Loading configuration from {args.config}...")
@@ -62,10 +68,30 @@ def main():
     print(f"Loading AnnData from {adata_path}...")
     adata = sc.read_h5ad(require_input(
         adata_path,
-        what="the PBMC3k AnnData this arm compares cell types in",
+        what="the AnnData this arm compares two cell types in",
         source="config.yaml's adata_path, resolved from reproducibility/. "
-               "Build it or fetch the 10x PBMC3k matrix",
+               "For Kang: python -m fetch_data --arm celltype",
     ))
+
+    # Restrict to one condition before anything else, so the gene filter below
+    # is computed on the population actually analysed.
+    for col, value in (config.get("subset") or {}).items():
+        before = adata.shape[0]
+        adata = adata[adata.obs[col].astype(str) == str(value)].copy()
+        print(f"Subset {col} == {value!r}: {before} -> {adata.shape[0]} cells")
+
+    # Collapse labels before selecting the two groups. celltype_merge exists
+    # because the committed reference markers (results/kang_{B,T}_markers.csv)
+    # were computed with CD4 and CD8 pooled into one T group; comparing against
+    # them without pooling would score one population's DE against another's
+    # markers.
+    merge = config.get("celltype_merge") or {}
+    if merge:
+        mapping = {old: new for new, olds in merge.items() for old in olds}
+        col = config["celltype_column"]
+        adata.obs[col] = adata.obs[col].astype(str).replace(mapping)
+        for new, olds in merge.items():
+            print(f"Merged {olds} -> {new!r}: {int((adata.obs[col] == new).sum())} cells")
 
     # Basic filtering
     print("Filtering cells with fewer than 200 genes expressed...")

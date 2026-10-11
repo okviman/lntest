@@ -13,6 +13,11 @@ reproducibility/output/
 *.h5ad
 *.gmt
 
+*.pdf
+*.csv
+*.tex
+*.sha256
+
 # IDE and editor state
 .idea/
 .vscode/

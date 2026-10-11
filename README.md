@@ -23,4 +23,4 @@ adata.uns["rank_genes_groups"]["lfc_se"]
 
 ## Example
 
-The notebook [PBMC3k](notebooks/pbmc3k.ipynb) showcases LN's $t$-test finding much less DE genes than scanpy's $t$-test on the 3k PBMCS data set from 10x Genomics.
+The notebook [PBMC3k](notebooks/pbmc3k.ipynb) showcases LN's $t$-test finding far fewer DEGs than scanpy's $t$-test on the 3k PBMCS data set from 10x Genomics.

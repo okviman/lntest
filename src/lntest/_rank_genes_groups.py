@@ -41,7 +41,7 @@ def rank_genes_groups_ln(
     test: str = "t",  # forwarded to get_LN_lfcs
     rankby_abs: bool = False,
     sparse: bool = True,
-    corr_method: str = "bonferroni",
+    corr_method: str = "benjamini-hochberg",
 ):
     """
     Takes normalized data and performs LN's t-test. Updates the adata object with the results.
@@ -49,11 +49,7 @@ def rank_genes_groups_ln(
     corr_method
         Multiple-testing correction, using scanpy's vocabulary and scanpy's
         implementation: ``"benjamini-hochberg"`` or ``"bonferroni"``.
-
-        The default differs from scanpy's on purpose. scanpy defaults to
-        Benjamini-Hochberg; this function uses Bonferroni unless told otherwise,
-        because that is what the published results were corrected with and
-        changing the default would silently move them.
+        The default is scanpy's, Benjamini-Hochberg.
     """
 
     if groupby not in adata.obs:

@@ -3,129 +3,128 @@ import sys
 import numpy as np
 import pandas as pd
 
-from paths import require_input
+from paths import fig_name, require_input, results_dir
+import plot_style
+from method_colors import method_color, method_draw_order, method_label
 import matplotlib.pyplot as plt
 import argparse
 
-# Use matplotlib's built-in math rendering (doesn't require LaTeX)
-plt.rcParams['text.usetex'] = False
-plt.rcParams['mathtext.fontset'] = 'cm'  # Computer Modern style
-plt.rcParams['font.family'] = 'serif'
+plot_style.use()
+
+SAMPLING = r'$p_\mathrm{sample}$'
+SPLIT = r'$p_\mathrm{split}$'
 
 
-def plot_fpr_results(csv_file, output_file, aspect_ratio=1.0, title_suffix=None):
+def p_axis(p, p_symbol, odds=False):
+    """x values and label for a p axis: p itself, or (1 - p) / p, which grows as the test gets harder --
+    for p_split the ratio of the two groups' sampling variances, as Var(Y) / Var(X) in the synthetic NB."""
+    p = np.asarray(p, dtype=float)
+    if not odds:
+        return p, p_symbol
+    inner = p_symbol.strip('$')
+    return (1 - p) / p, rf'$(1 - {inner})\,/\,{inner}$'
+
+
+def plot_fpr_results(csv_file, output_file, aspect_ratio=None, p_label=SAMPLING, odds=False):
     """
-    Plot log10(FPR) vs p from CSV results file.
-    
+    Plot FPR vs p from CSV results file: the mean over replicates, with bars of one SD.
+
+    The axis is linear, as in the synthetic NB null figures. Bars are clipped at zero, since an FPR
+    cannot be negative.
+
     Parameters
     ----------
     csv_file : str
         Path to input CSV file
     output_file : str
         Path to output plot file
-    aspect_ratio : float
-        Aspect ratio for the plot (default: 1.0)
-    title_suffix : str, optional
-        Text to append to the plot title (default: None)
+    aspect_ratio : float, optional
+        Aspect ratio for the plot (default: None, the panel's own)
+    p_label : str
+        The x-axis label: SAMPLING for UMI downsampling, SPLIT for spot splitting
     """
-    # Read the CSV file
     df = pd.read_csv(require_input(
         csv_file,
         what="this arm's FPR-vs-subsampling results",
         source="run `python -m kidney.umi_null` first",
     ))
-    
-    # Map method names to LaTeX-friendly names
-    method_mapping = {
-        'DELN': r"LN's $t$-test",
-        'Scanpy t-test': r'$t$-test',
-        'Scanpy wilcoxon': 'Wilcoxon'
-    }
-    
-    # Apply method name mapping
-    df['method_display'] = df['method'].map(method_mapping).fillna(df['method'])
-    
-    # Get unique methods
-    methods = df['method_display'].unique()
-    p_values = sorted(df['p'].unique())
-    
-    # Create color map
-    colors = plt.cm.tab10(np.linspace(0, 1, len(methods)))
-    method_colors = {method: colors[i] for i, method in enumerate(methods)}
-    
-    # Create the plot
-    fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-    
-    # Plot each method
-    # Use raw FPR values and plot on log scale to avoid epsilon capping issues
-    for method in methods:
-        method_data = df[df['method_display'] == method]
-        method_data = method_data.sort_values('p')
-        
-        fpr_means = method_data['fpr_mean'].values
-        fpr_stds = method_data['fpr_std'].values
-        p_vals = method_data['p'].values
-        
-        # Handle zero FPR values by setting a minimum for plotting
-        # Use asymmetric error bars: only show positive error bars to avoid going below log scale minimum
-        epsilon = 1e-10
-        fpr_means_plot = np.maximum(fpr_means, epsilon)  # Minimum for log scale
-        
-        # Compute error bar bounds in linear space
-        fpr_lower = np.maximum(fpr_means - fpr_stds, epsilon)
-        fpr_upper = np.maximum(fpr_means + fpr_stds, epsilon)  # Also cap upper bound
-        
-        # Convert to log10 for plotting
-        fpr_means_log10 = np.log10(fpr_means_plot)
-        fpr_lower_log10 = np.log10(fpr_lower)
-        fpr_upper_log10 = np.log10(fpr_upper)
-        
-        # Asymmetric error bars: ensure non-negative
-        # Lower error: how far down from mean (should be non-negative since fpr_lower <= fpr_means)
-        yerr_lower = np.maximum(0, fpr_means_log10 - fpr_lower_log10)
-        # Upper error: how far up from mean (should be non-negative since fpr_upper >= fpr_means)
-        yerr_upper = np.maximum(0, fpr_upper_log10 - fpr_means_log10)
-        
-        ax.errorbar(p_vals, fpr_means_log10, 
-                   yerr=[yerr_lower, yerr_upper], 
-                   marker='o', capsize=5, capthick=2, label=method, 
-                   color=method_colors[method], linewidth=2, markersize=6)
-    
-    # Prepare title text
-    title = r'FPR vs Sampling probability'
-    if title_suffix:
-        title = f'{title} {title_suffix}'
-    
-    ax.set_xlabel(r'Sampling probability $p$', fontsize=18)
-    ax.set_ylabel(r'$\log_{10}(\mathrm{FPR})$', fontsize=18)
-    ax.set_title(title, fontsize=16, fontweight='bold')
-    ax.grid(True, alpha=0.3)
-    ax.legend(loc='upper right', fontsize=16)
-    ax.tick_params(axis='both', which='major', labelsize=16)
-    ax.set_aspect(aspect_ratio, adjustable='box')
-    
+
+    df['method_display'] = df['method'].map(method_label)
+    fig, ax = plt.subplots(1, 1, figsize=plot_style.figsize())
+    for method in method_draw_order(df['method_display']):
+        d = df[df['method_display'] == method].sort_values('p')
+        mean, sd = d['fpr_mean'].to_numpy(), d['fpr_std'].to_numpy()
+        ax.errorbar(p_axis(d['p'], p_label, odds)[0], mean, yerr=[np.minimum(sd, mean), sd], label=method,
+                    color=method_color(method), **plot_style.ERRORBAR)
+
+    ax.set_xlabel(p_axis([], p_label, odds)[1])
+    ax.set_ylabel('FPR')
+    if aspect_ratio is not None:
+        ax.set_aspect(aspect_ratio, adjustable='box')
+
     plt.tight_layout()
-    plt.savefig(output_file, format='eps', dpi=300, bbox_inches='tight')
+    plot_style.legend_outside(fig)
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Plot saved to {output_file}")
     plt.close()
+
+
+def plot_fpr_log(csv_file, output_file, p_label=SAMPLING, odds=False):
+    """The same mean and one-SD bars as plot_fpr_results, on a log axis with zero drawn as zero.
+
+    Zero has no place on a log axis, so it gets its own row, labelled 0, one decade below the smallest
+    positive value and set off by a break mark. A mean of zero (no false call in any replicate) sits on
+    that row, and a lower bar reaching zero or below (SD at least the mean) ends there.
+    """
+    df = pd.read_csv(require_input(
+        csv_file,
+        what="this arm's FPR-vs-subsampling results",
+        source="run `python -m kidney.umi_null` first",
+    ))
+    fig, ax = plt.subplots(1, 1, figsize=plot_style.figsize())
+    draw_fpr_log(ax, df, p_label, odds)
+    plt.tight_layout()
+    plot_style.legend_outside(fig)
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Plot saved to {output_file}")
+    plt.close()
+
+
+def draw_fpr_log(ax, df, p_label=SAMPLING, odds=False):
+    """plot_fpr_log's panel, drawn into ax."""
+    df = df.assign(method_display=df['method'].map(method_label))
+    zero = plot_style.zero_row(df['fpr_mean'], df['fpr_std'])
+    for method in method_draw_order(df['method_display']):
+        d = df[df['method_display'] == method].sort_values('p')
+        plot_style.errorbar_log(ax, p_axis(d['p'], p_label, odds)[0], d['fpr_mean'], d['fpr_std'], zero, label=method,
+                                color=method_color(method))
+    plot_style.log_axis_with_zero(ax, zero, (df['fpr_mean'] + df['fpr_std']).max())
+    ax.set_xlabel(p_axis([], p_label, odds)[1])
+    ax.set_ylabel('FPR')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Plot FPR results from CSV file')
     parser.add_argument('--csv_file', type=str, required=True,
                         help='Input CSV file with FPR results')
-    parser.add_argument('--output', type=str, default='fpr_plot.eps',
-                        help='Output file for the plot (default: fpr_plot.eps)')
-    parser.add_argument('--aspect_ratio', type=float, default=1.0,
-                        help='Aspect ratio for the plot (default: 1.0)')
-    parser.add_argument('--title_suffix', type=str, default=None,
-                        help='Text to append to the plot title (default: None)')
+    parser.add_argument('--output', type=str, default=str(results_dir(__file__) / fig_name('fpr_plot')),
+                        help='Output file for the plot (default: kidney/results/fpr_plot.pdf)')
+    parser.add_argument('--aspect_ratio', type=float, default=None,
+                        help="Aspect ratio for the plot (default: the panel's own)")
+    parser.add_argument('--split', action='store_true',
+                        help='Results are from spot_split: label the x-axis with the split probability')
     args = parser.parse_args()
     
     if not os.path.exists(args.csv_file):
         raise FileNotFoundError(f"CSV file not found: {args.csv_file}")
     
     print(f"Reading results from {args.csv_file}...")
-    plot_fpr_results(args.csv_file, args.output, args.aspect_ratio, title_suffix=args.title_suffix)
+    p_label = SPLIT if args.split else SAMPLING
+    plot_fpr_results(args.csv_file, args.output, args.aspect_ratio, p_label=p_label)
+    plot_fpr_results(args.csv_file, f"{os.path.splitext(args.output)[0]}_odds.pdf", args.aspect_ratio,
+                     p_label=p_label, odds=True)
+    stem = os.path.splitext(args.output)[0]
+    plot_fpr_log(args.csv_file, f"{stem}_log.pdf", p_label=p_label)
+    plot_fpr_log(args.csv_file, f"{stem}_log_odds.pdf", p_label=p_label, odds=True)
     print("Done!")
 

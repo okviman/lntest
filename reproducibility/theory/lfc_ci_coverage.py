@@ -1,7 +1,15 @@
+import argparse
+
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from utils_frozen import digamma, trigamma, get_intervals
+from paths import fig_name, results_dir
+import plot_style
+from method_colors import method_color, method_label
+
+SEED = 0
 
 
 def generate_count_data(r, p, n):
@@ -16,8 +24,7 @@ def estimate_ziln_mean(x, a, b):
     return log_mean
 
 
-def generate_scaled_binomial_draws(theta, n):
-    rng = np.random.default_rng()
+def generate_scaled_binomial_draws(theta, n, rng):
     N_plus = rng.binomial(n, theta)
     return N_plus / n
 
@@ -33,6 +40,8 @@ def generate_ln_draws(a, b):
 
 
 def visualize_fit_to_scaled_binomial():
+    np.random.seed(SEED)
+    rng = np.random.default_rng(SEED)
     theta = 0.1
     n = 1000
     experiments = 10000
@@ -42,7 +51,7 @@ def visualize_fit_to_scaled_binomial():
     normals = np.zeros_like(scaled_binomials)
 
     for i in range(experiments):
-        scaled_binomials[i] = generate_scaled_binomial_draws(theta, n)
+        scaled_binomials[i] = generate_scaled_binomial_draws(theta, n, rng)
         betas[i] = generate_beta_draws(theta * n, n * (1 - theta))
         log_normals[i] = generate_ln_draws(theta * n, n * (1 - theta))
         normals[i] = np.random.normal(theta, np.sqrt(theta * (1 - theta) / n))
@@ -53,10 +62,11 @@ def visualize_fit_to_scaled_binomial():
     ax[2].hist(log_normals, bins=100)
     ax[3].hist(normals, bins=100)
     plt.tight_layout()
-    plt.show()
+    _save(fig, 'fit_to_scaled_binomial.png')
 
 
 def visualize_lfc_normality():
+    np.random.seed(SEED)
     r_treatment = 10
     r_ctrl = 20
     p = 0.01
@@ -70,24 +80,24 @@ def visualize_lfc_normality():
         lc = estimate_ziln_mean(x_ctrl, a_ctrl, b_ctrl)
         lfcs_ziln[i] = lt - lc
     lfc = np.log(r_treatment * (1 - p) / p) - np.log(r_ctrl * (1 - p) / p)
+    fig = plt.figure()
     plt.hist(lfcs_ziln, bins=100)
     plt.vlines(lfc, 0, 300, color='r')
-    plt.show()
+    _save(fig, 'lfc_normality.png')
 
 
 def lfc_coverage():
+    np.random.seed(SEED)
     r_treatment = 2
     r_ctrl = 5
     p = 0.6
     x_treatment, a_treatment, b_treatment = generate_count_data(r_treatment, p, 1000)
     x_ctrl, a_ctrl, b_ctrl = generate_count_data(r_ctrl, p, 1000)
-    f, ax = plt.subplots(3, 1)
-    ax[0].set_title('Treatment NB')
-    ax[0].hist(x_treatment, bins=100, label=f'$r={r_treatment},p={p}$')
-    ax[0].legend(loc='upper right')
-    ax[1].set_title('Ctrl NB')
-    ax[1].hist(x_ctrl, bins=100, color='r', label=f'$r={r_ctrl},p={p}$')
-    ax[1].legend(loc='upper right')
+    f, ax = plt.subplots(3, 1, figsize=plot_style.figsize(1, 3))
+    ax[0].set_title(f'Treatment NB ($r={r_treatment}, p={p}$)')
+    ax[0].hist(x_treatment, bins=100)
+    ax[1].set_title(f'Ctrl NB ($r={r_ctrl}, p={p}$)')
+    ax[1].hist(x_ctrl, bins=100, color='r')
 
     coverage_ziln = []
     coverage_normal = []
@@ -138,16 +148,45 @@ def lfc_coverage():
                     (np.exp(lfc) > lfc_normal_intervals[0, :]) * (np.exp(lfc) < lfc_normal_intervals[1, :]))) / experiments
                 coverage_normal.append(coverage_percentage)
             print(model + ":", coverage_percentage)
-    ax[2].plot(n_list, coverage_ziln, color='b', label='ZILN')
-    ax[2].plot(n_list, coverage_normal, color='r', label='normal')
-    ax[2].plot(n_list, coverage_log1p, color='magenta', label='log1p')
+    ax[2].plot(n_list, coverage_log1p, color=method_color('log1p'), label=method_label('log1p'))
+    ax[2].plot(n_list, coverage_normal, color='0.5', label='normal')
     ax[2].hlines(0.95, n_list[0], n_list[-1], color='black', linestyle='--', label='95% coverage')
-    ax[2].legend(loc='best')
+    ax[2].plot(n_list, coverage_ziln, color=method_color('ZILN'), label=method_label('ZILN'))  # on top
     ax[2].set_xlabel('$n$')
     plt.tight_layout()
-    plt.show()
+    plot_style.legend_outside(f, *ax[2].get_legend_handles_labels(), y=0.33)
+    _save(f, 'lfc_ci_coverage.png')
+
+    rows = [
+        {'n': n, 'model': model, 'coverage': cov}
+        for model, covs in (('lognormal', coverage_ziln),
+                            ('naive', coverage_normal),
+                            ('log1p', coverage_log1p))
+        for n, cov in zip(n_list, covs)
+    ]
+    out = results_dir(__file__) / 'lfc_ci_coverage.csv'
+    pd.DataFrame(rows).to_csv(out, index=False)
+    print(f'wrote {out}')
+
+
+FIGURES = {
+    'coverage': lfc_coverage,
+    'binomial-fit': visualize_fit_to_scaled_binomial,
+    'lfc-normality': visualize_lfc_normality,
+}
+
+
+def _save(fig, name):
+    out = results_dir(__file__) / fig_name(name)
+    fig.savefig(out, dpi=200, bbox_inches='tight')
+    plt.close(fig)
+    print(f'wrote {out}')
 
 
 if __name__ == '__main__':
-    # visualize_lfc_normality()
-    lfc_coverage()
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--figure', choices=[*FIGURES, 'all'], default='coverage')
+    args = ap.parse_args()
+    plot_style.use()
+    for name in (FIGURES if args.figure == 'all' else [args.figure]):
+        FIGURES[name]()
