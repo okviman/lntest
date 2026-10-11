@@ -1,7 +1,7 @@
 import numpy as np
 import scipy.sparse as sp
 
-from ._ln_test import get_LN_lfcs, get_LN_lfcs_sparse
+from ._ln_test import get_LN_lfcs, get_LN_lfcs_sparse, trigamma_diff
 
 
 def _to_dense(a):
@@ -29,6 +29,40 @@ def _adjust_pvalues(pvals, method, n_genes):
     raise ValueError(f"corr_method must be one of {set(CORR_METHODS)}.")
 
 
+RANKBY = ("score", "markers")
+
+
+def _detected(a):
+    """Per gene, the number of cells with a positive value."""
+    if sp.issparse(a):
+        return np.asarray((a > 0).sum(axis=0)).ravel().astype(float)
+    return (np.asarray(a) > 0).sum(axis=0).astype(float)
+
+
+def _marker_scores(Y_, X_):
+    """Per gene, the log ratio of the two detection rates over its standard error, detecting cells floored at 1."""
+    n_y, n_x = Y_.shape[0], X_.shape[0]
+    a_y = np.maximum(_detected(Y_), 1.0)
+    a_x = np.maximum(_detected(X_), 1.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.log((a_y / n_y) / (a_x / n_x)) / np.sqrt(trigamma_diff(a_y, n_y) + trigamma_diff(a_x, n_x))
+
+
+def _marker_order(var_names, score_vec, q_vec, marker_vec, order):
+    """The markers by marker score, then the other genes in ``order``.
+
+    Markers and ties are judged on the float32 values the results are stored
+    as, so the order is the one the stored statistics and p-values imply.
+    """
+    s = score_vec.astype(np.float32).astype(float)
+    q = q_vec.astype(np.float32).astype(float)
+    is_marker = (q < 0.05) & (s > 0)
+    idx = np.flatnonzero(is_marker)
+    m = marker_vec[idx]
+    first = idx[np.lexsort((var_names[idx].astype(str), -s[idx], -np.where(np.isnan(m), -np.inf, m)))]
+    return np.concatenate([first, order[~is_marker[order]]])
+
+
 def rank_genes_groups_ln(
     adata,
     groupby: str,
@@ -42,6 +76,7 @@ def rank_genes_groups_ln(
     rankby_abs: bool = False,
     sparse: bool = True,
     corr_method: str = "benjamini-hochberg",
+    rankby: str = "score",
 ):
     """
     Takes normalized data and performs LN's t-test. Updates the adata object with the results.
@@ -50,10 +85,23 @@ def rank_genes_groups_ln(
         Multiple-testing correction, using scanpy's vocabulary and scanpy's
         implementation: ``"benjamini-hochberg"`` or ``"bonferroni"``.
         The default is scanpy's, Benjamini-Hochberg.
+    rankby
+        ``"score"`` orders each group's genes by the test statistic, as scanpy
+        does. ``"markers"`` puts the group's markers first: the genes with
+        adjusted p below 0.05 and a positive statistic, ranked by the marker
+        score, the log ratio of the group's and the reference's detection
+        rates over its standard error (``sqrt(1/a - 1/n)`` per side, with ``a``
+        the cells detecting the gene floored at 1), ties to the statistic and
+        then the gene name; genes that every cell detects, scoring 0/0, come
+        last among them. The other genes follow as ``"score"`` orders them,
+        and the marker scores are stored as ``marker_scores``. The paper calls
+        markers with ``corr_method="bonferroni"``.
     """
 
     if groupby not in adata.obs:
         raise KeyError(f"`groupby='{groupby}'` not found in adata.obs")
+    if rankby not in RANKBY:
+        raise ValueError(f"rankby must be one of {set(RANKBY)}.")
 
     # Decide which matrix to use
     if use_raw is None:
@@ -105,6 +153,8 @@ def rank_genes_groups_ln(
     # Stored so a confidence interval is reachable without bypassing this
     # wrapper: lfc +/- 1.96 * lfc_se.
     lfc_se = np.recarray((n_store,), dtype=dtype_float)
+    if rankby == "markers":
+        marker_scores = np.recarray((n_store,), dtype=dtype_float)
 
     # Main loop
     obs_vals = adata.obs[groupby].values
@@ -163,6 +213,9 @@ def rank_genes_groups_ln(
             order = np.argsort(-np.abs(score_vec))
         else:
             order = np.argsort(-score_vec)
+        if rankby == "markers":
+            marker_vec = _marker_scores(Y_, X_)
+            order = _marker_order(var_names, score_vec, q_vec, marker_vec, order)
 
         if store_all:
             top = order  # all genes, ranked
@@ -175,6 +228,8 @@ def rank_genes_groups_ln(
         pvals[g] = p_vec[top].astype(np.float32)
         pvals_adj[g] = q_vec[top].astype(np.float32)
         lfc_se[g] = se_vec[top].astype(np.float32)
+        if rankby == "markers":
+            marker_scores[g] = marker_vec[top].astype(np.float32)
 
     # Write to adata.uns like scanpy
     adata.uns[key_added] = {
@@ -188,6 +243,7 @@ def rank_genes_groups_ln(
             "method": "ln_wrapper",  # custom label
             "test": test,
             "rankby_abs": rankby_abs,
+            "rankby": rankby,
         },
         "names": names,
         "scores": scores,
@@ -196,5 +252,7 @@ def rank_genes_groups_ln(
         "pvals_adj": pvals_adj,
         "lfc_se": lfc_se,
     }
+    if rankby == "markers":
+        adata.uns[key_added]["marker_scores"] = marker_scores
 
     return None
