@@ -4,19 +4,23 @@ downsampling (p_sample). Each panel is drawn by the arm's own drawing code; thes
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib.lines import Line2D
 
 import plot_style
 from figures.layout import KEY_W, PLOT, ROW_H, WIDTH, axes_at, method_key, save
+from kidney import null_calibration as nc
 from kidney import spot_split_plots as ssp
 from kidney.fpr_plots import draw_fpr_log
 from method_colors import method_draw_order
+from paths import require_input, results_dir
 
 GRID_TITLE, GRID_ASPECT, GRID_GAP = 0.3, 0.8, 0.22   # the PR-curve grid: title space per row, axes height over width, gap
 
 
-def null_auc_curves(null_df, curve_data, p_symbol, stems, width=WIDTH):
-    """Three panels with equal axes: the null FPR, the PR-AUC and the PR curves, one method key and the p key beside the last."""
+def null_auc_curves(null_df, results, curve_data, p_symbol, stems, width=WIDTH):
+    """Three panels with equal axes: the null FPR, the AUPRC (from results) and the PR curves, one method key and the p key
+    beside the last."""
     curves, p_values = curve_data['curves'], np.array(curve_data['p_values'])
     methods = method_draw_order(curves[next(iter(curves))])
 
@@ -33,7 +37,7 @@ def null_auc_curves(null_df, curve_data, p_symbol, stems, width=WIDTH):
     fpr = save(fig, stems[0])
 
     fig, ax = plot_axes(slot)
-    ssp.draw_pr_auc(ax, curves, methods, p_values, p_symbol)
+    ssp.draw_auprc(ax, results, p_symbol)
     auc = save(fig, stems[1])
 
     fig, ax = plot_axes(slot + KEY_W)
@@ -75,4 +79,34 @@ def pr_curve_grid(curve_data, p_symbol, stem, width=WIDTH):
         axes.append(ax)
     ssp.label_grid_outer(axes, n_cols)
     plot_style.legend_outside(fig)
+    return save(fig, stem)
+
+
+CALIBRATION_ALPHA = 0.05
+
+
+def null_fpr(df, p_symbol, title, stem, width):
+    """The no-DEG FPR as Fig 1f draws it (kidney.fpr_plots.draw_fpr_log), in a slot of the given width, titled."""
+    fig = plt.figure(figsize=(width, ROW_H))
+    top = 0.25
+    ax = axes_at(fig, PLOT['left'], PLOT['bottom'], width - PLOT['left'] - PLOT['right'], ROW_H - PLOT['bottom'] - top)
+    draw_fpr_log(ax, df, p_symbol)
+    ax.set_title(title)
+    if ax.get_legend():
+        ax.get_legend().remove()
+    return save(fig, stem)
+
+
+def calibration(experiment, title, stem, width):
+    """The share of null genes with uncorrected p below CALIBRATION_ALPHA on one of the kidney's no-DEG nulls
+    (kidney.null_calibration), in a slot of the given width, titled; a calibrated test gives the dashed line."""
+    df = pd.read_csv(require_input(results_dir(nc.__file__) / nc.CSV, what='the kidney null calibration',
+                                   source='python -m kidney.null_calibration'))
+    fig = plt.figure(figsize=(width, ROW_H))
+    top = 0.25
+    ax = axes_at(fig, PLOT['left'], PLOT['bottom'], width - PLOT['left'] - PLOT['right'], ROW_H - PLOT['bottom'] - top)
+    nc.draw_calibration(ax, df, experiment, CALIBRATION_ALPHA)
+    ax.set_title(title)
+    if ax.get_legend():
+        ax.get_legend().remove()
     return save(fig, stem)

@@ -8,6 +8,7 @@ from matplotlib.patches import Patch
 import numpy as np
 import pandas as pd
 from scipy.stats import gaussian_kde
+from sklearn.metrics import average_precision_score
 
 import plot_style
 from method_colors import MEDIANPROPS, method_color, method_draw_order, method_label, method_order
@@ -135,15 +136,14 @@ def lfc():
 
 
 def ranking_curve(is_de, adj_p):
-    """Precision and recall down the ranking by adjusted p-value, and the area under the curve's upper
-    envelope; the kidney arm's definitions (kidney/spot_split.py, de_test_single)."""
+    """Precision and recall down the ranking by adjusted p-value (the kidney arm's, kidney/spot_split.py
+    de_test_single), and the AUPRC as everywhere in the paper: sklearn's average precision of that ranking."""
     score = -np.log10(np.clip(np.nan_to_num(adj_p, nan=1.0), 1e-300, 1.0))
     hits = is_de[np.argsort(score)[::-1]]
     tp = np.cumsum(hits)
     precision = np.concatenate([[1.0], tp / np.arange(1, hits.size + 1)])
     recall = np.concatenate([[0.0], tp / hits.sum()])
-    envelope = np.maximum.accumulate(precision[::-1])[::-1]
-    return precision, recall, np.trapz(envelope, recall)
+    return precision, recall, average_precision_score(is_de, score)
 
 
 def box(ax, k, values, method, rng):
@@ -184,7 +184,7 @@ def metrics():
 
 
 def summary_data():
-    """Per replicate and method: TPR and FPR at Bonferroni 0.05 and PR-AUC; and each method's PR curves on a recall grid."""
+    """Per replicate and method: TPR and FPR at Bonferroni 0.05 and AUPRC; and each method's PR curves on a recall grid."""
     res = pd.read_csv(require_input(RESULTS / 'CITE_seq_results.csv', what='per-gene results of every replicate',
                                     source='python -m citeseq.exp'), index_col=0)
     columns = {'LN': 'ln_adj_pvalue', 't-test': 't_adj_pvalue', 'Wilcoxon': 'w_adj_pvalue'}
@@ -198,7 +198,7 @@ def summary_data():
             called = adj_p < 0.05
             precision, recall, area = ranking_curve(is_de, adj_p)
             curves[m].append(np.interp(grid, recall, precision, left=precision[0], right=precision[-1]))
-            rows.append({'method': m, 'TPR': called[is_de].mean(), 'FPR': called[~is_de].mean(), 'PR-AUC': area})
+            rows.append({'method': m, 'TPR': called[is_de].mean(), 'FPR': called[~is_de].mean(), 'AUPRC': area})
     return pd.DataFrame(rows), curves, grid, methods
 
 
@@ -206,7 +206,7 @@ def draw_summary(axes, df, curves, grid, methods):
     """The summary's four panels into a 2 x 2 array of axes; returns the method key."""
     rng = np.random.default_rng(0)
     zero = plot_style.zero_row(df['FPR'], np.zeros(len(df)))
-    for ax, metric in zip(axes.flat[:3], ['TPR', 'FPR', 'PR-AUC']):
+    for ax, metric in zip(axes.flat[:3], ['TPR', 'FPR', 'AUPRC']):
         for k, m in enumerate(methods):
             values = df.loc[df['method'] == m, metric].to_numpy()
             box(ax, k, np.where(values > 0, values, zero) if metric == 'FPR' else values, m, rng)
@@ -233,7 +233,7 @@ def draw_summary(axes, df, curves, grid, methods):
 
 def summary():
     """The kidney with-DEG summary's panels for this experiment's single, balanced condition:
-    TPR and FPR at Bonferroni 0.05, PR-AUC, and the mean PR curves, over the replicates."""
+    TPR and FPR at Bonferroni 0.05, AUPRC, and the mean PR curves, over the replicates."""
     df, curves, grid, methods = summary_data()
     fig, axes = plt.subplots(2, 2, figsize=plot_style.figsize(2, 2))
     key = draw_summary(axes, df, curves, grid, methods)

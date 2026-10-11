@@ -30,14 +30,17 @@ def load(base_mus):
 
 
 def ratio_axis(ax, sub):
-    """Linear x-axis from 1, labelled at every integer up to 8 and beyond it at 1 and every multiple of 4, ending at
-    the first integer by which every log1p curve has reached FPR 0.99 (or the last ratio, if one never does)."""
+    """Linear x-axis from 1, labelled at every integer up to 8, up to 16 at 1 and every multiple of 4, and beyond at 1
+    and every multiple of 8, ending at
+    the first integer by which every log1p and every Wilcoxon curve has reached FPR 0.99 (or the last ratio, if one
+    never does)."""
     hi = sub.ratio.max()
-    lp = sub[(sub.method == 'log1p t-test') & (sub.ratio > 1)]
-    reached = lp[lp.value >= 0.99].groupby('var_x').ratio.min()
-    if len(reached) == lp.var_x.nunique():
+    base = sub[sub.method.isin(['log1p t-test', 'Wilcoxon']) & (sub.ratio > 1)]
+    reached = base[base.value >= 0.99].groupby(['method', 'var_x']).ratio.min()
+    if len(reached) == base.groupby(['method', 'var_x']).ngroups:
         hi = min(math.ceil(reached.max()), hi)
-    ax.set_xticks(range(1, int(hi) + 1) if hi <= 8 else [1, *range(4, int(hi) + 1, 4)])
+    step = 1 if hi <= 8 else 4 if hi <= 16 else 8
+    ax.set_xticks(range(1, int(hi) + 1) if step == 1 else [1, *range(step, int(hi) + 1, step)])
     pad = 0.02 * (hi - 1)
     ax.set_xlim(1 - pad, hi + pad)
 

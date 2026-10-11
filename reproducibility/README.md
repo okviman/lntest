@@ -106,10 +106,11 @@ fetched, downloaded or generated.
 | `theory` | none | **yes** |
 | `nullsplit` | `nullsplit/data/split_{a,b}.csv` (committed) | **yes** |
 | `citeseq` | `citeseq/data/memory_CD4.h5ad` (committed, 16 MB) | **yes** — also rebuildable from a download, see below |
-| `clustering` | `data/pbmc3k_filtered_gene_bc_matrices.tar.gz` | **yes** — `python -m fetch_data --arm clustering` |
+| `clustering` | `data/pbmc3k_filtered_gene_bc_matrices.tar.gz`; for `multires_gaps`, `data/GSE107011_Processed_data_TPM.txt.gz` (Monaco et al. 2019 sorted-cell bulk, 15 MB); for `marker_rule`, `data/monaco2019_supplementary.zip` (their supplementary tables, 55 MB) and `data/hpa_25.1_proteinatlas.tsv.zip` (Human Protein Atlas 25.1, 7 MB) | **yes** — `python -m fetch_data --arm clustering`, all pinned by sha256 |
 | `celltype` | `data/pbmcs3k_pre.h5ad`, `data/kang_2018.h5ad` | **yes** — `fetch_data --arm celltype`, then `python -m celltype.preprocess` |
 | `kidney` | `kidney/data/{merged_blobs_in_cluster_5,podocytes_2um}.h5ad` | **download yes** — `fetch_data --arm kidney` (6.5 GB), then `preprocess.ipynb` |
 | `lymphnode` | `lymphnode/data/vishd-cluster1-cluster3-2um-with-clusters-subsampled.h5ad` | **download yes** — `fetch_data --arm lymphnode` (4.7 GB), then the reproduce script (hours) |
+| `published` | `data/GSE182109_RAW.tar`, `data/Meta_Data_GBMatlas.txt` | **download yes** — `fetch_data --arm published` (2.5 GB), both pinned by sha256 |
 
 `data/` and `*/data/` are gitignored, so a file being present in one working copy says nothing about a fresh clone.
 Every entry point checks its input first and exits naming the missing path and where it comes from, rather than failing part-way through.
@@ -167,14 +168,15 @@ python -m synthetic_nb.de_test         # ~3 min; sparse genes -> synthetic_nb/re
 python -m synthetic_nb.de_test --setting dense       # -> synthetic_nb/results/nde_mu100/
 python -m synthetic_nb.de_ratio        # both settings: the five metrics against Var(X)/Var(Y)
 python -m synthetic_nb.latex_tables    # formats the sparse CSV as a LaTeX table
-python -m synthetic_nb.null            # ~35 s; base_mu 50 by default
+python -m synthetic_nb.null            # ~40 s; base_mu 50 by default
 python -m synthetic_nb.null --base-mu 5
 python -m synthetic_nb.null --base-mu 5 --plot-only   # redraw from the sweep's CSV
 python -m synthetic_nb.null_ratio      # both sweeps against Var(Y)/Var(X), side by side, narrower and stacked
 python -m synthetic_nb.lfc_confidence_intervals
 ```
 
-`null.py` samples a grid of variance ratios by default: Var(X) is 1, 2, 4 and 8 times the mean (1 is Poisson), and Var(Y)/Var(X) runs from 1 to 16 in quarter-octave steps.
+`null.py` samples a grid of variance ratios by default: Var(X) is 1, 2, 4 and 8 times the mean (1 is Poisson), and Var(Y)/Var(X) runs from 1 to 64 in quarter-octave steps; the ratios past 16 are drawn after the rest, so adding them left every earlier value as it was.
+`null_ratio`'s axis ends where every log1p and every Wilcoxon curve has reached FPR 0.99.
 On it the null runs LN's t-test, the log1p t-test and Wilcoxon, each Bonferroni-corrected and the Wilcoxon tie-corrected, as everywhere; the dispersion grid below keeps RECOMB's two tests.
 Ratios below 1 would repeat the same settings with the groups swapped: every test is two-sided and the groups are the same size.
 `--grid dispersion` is the grid behind RECOMB Fig 1 — the same 20 values of Var(Y) for every Var(X) — and writes `null_fpr_by_var_mu{5,50}.*`; the default ratio grid
@@ -218,7 +220,8 @@ sed 's|^adata_path:.*|adata_path: "clustering/results/pbmc3k_filtered_gene_bc_ma
 python -m clustering.metrics --config .metrics_config.yaml --output-dir clustering/results
 python -m clustering.plots   --metrics-dir clustering/results/metrics --config clustering/config.yaml
 python -m clustering.heldout_fp --config clustering/config.yaml   # about a minute; false positives on held-out negatives
-# the same on a second, deeper dataset: PBMC10k's RNA from the CITE-seq arm's input (python -m fetch_data --arm citeseq)
+# the same on a second, deeper dataset: PBMC10k's RNA from the CITE-seq arm's input (python -m fetch_data --arm citeseq),
+# with the doublets scanpy's Scrublet predicts removed; under a minute
 python -m clustering.pbmc10k_prep
 python -m clustering.de --config clustering/config_pbmc10k.yaml --output-dir clustering/results/pbmc10k --skip-mast   # minutes
 sed 's|^adata_path:.*|adata_path: "clustering/results/pbmc10k/pbmc10k_rna_DE.h5ad"|' \
@@ -226,6 +229,40 @@ sed 's|^adata_path:.*|adata_path: "clustering/results/pbmc10k/pbmc10k_rna_DE.h5a
 python -m clustering.metrics --config .metrics_config.yaml --output-dir clustering/results/pbmc10k
 python -m clustering.plots   --metrics-dir clustering/results/pbmc10k/metrics --config clustering/config_pbmc10k.yaml
 python -m clustering.heldout_fp --config clustering/config_pbmc10k.yaml --output-dir clustering/results/pbmc10k    # tens of minutes
+# exact null: random halves of each leiden_mid cluster, one half thinned; seconds per dataset
+python -m clustering.exact_null --config clustering/config.yaml --n-workers 4
+python -m clustering.exact_null --config clustering/config_pbmc10k.yaml --output-dir clustering/results/pbmc10k --n-workers 4
+# cell-type labels for both datasets (CellTypist, downloads its model once), PBMC10k's checked against its antibodies
+python -m clustering.celltype_labels
+# each method's markers of those types in both datasets, their concordance, and the effect transfer; seconds
+python -m clustering.replication
+# each type of >= 200 cells subclustered, each subcluster tested against the rest of its type; under a minute
+python -m clustering.subcluster_de
+# each type of >= 400 cells split recursively to five levels, each child tested against its siblings; under a minute
+python -m clustering.subcluster_recursive
+# LN's markers ranked by the lower bound of the fold change, against the score; under a minute
+python -m clustering.lower_bound
+# each method's concordance between the datasets: markers, score rankings, scores and GSEA enrichments; minutes
+python -m clustering.concordance
+# each Leiden cluster annotated from each method's top-20 markers, across the five resolutions; seconds
+python -m clustering.multires
+# each subcluster's Hallmark GSEA against its siblings, as observed and with the two sides' depth matched; minutes
+python -m clustering.subcluster_gsea
+# across the five resolutions: each comparison's variance and depth gaps, each method's calls, top-20 markers and GSEA,
+# judged against sorted-cell bulk and the curated markers, and their stability between resolutions; about 15 minutes
+python -m clustering.multires_gaps
+# LN's LFC and SE: split-half calibration, carry-over between the datasets by SE, the detection-level decomposition,
+# and the concordance of LN's markers (its calls ranked by the detection score); a few minutes
+python -m clustering.lfc_se
+# every cluster at the five resolutions: each method's median score against the cluster's depth ratio, with its
+# least-squares line and Pearson r; about half a minute
+python -m clustering.multires_depth
+# LN's markers against its score and the baselines: housekeeping genes, HPA 25.1, sorted bulk and PBMC10k's surface
+# protein, for the 6 types and the five resolutions; about a minute
+python -m clustering.marker_rule
+# PBMC10k and PBMC3k: each cluster's mean |LFC| over its significant genes as each package reports it (LN's estimate, Scanpy's
+# for the log1p t-test, Seurat's avg_log2FC for the Wilcoxon) and the log1p t-test's difference of log1p means; seconds
+python -m clustering.effect_sizes
 ```
 
 Run them in that order, and **pass `--skip-mast`** (it still needs `R_HOME` — the flag does not avoid
@@ -357,6 +394,24 @@ python -m fetch_data --arm kidney          # includes the full-resolution H&E
 python -m kidney.capsule_figure            # ~3 s -> kidney/results/capsule_overview.pdf, capsule_split_illustration.pdf
 ```
 
+Calibration from uncorrected p-values on both null experiments, 100 replicates per $p$, for the calibration Extended
+Data figure:
+
+```bash
+python -m kidney.null_calibration              # tens of minutes on all cores -> kidney/results/null_calibration.csv
+python -m kidney.null_calibration --plot-only  # split_null_calibration.pdf, downsample_null_calibration.pdf
+```
+
+MAST on the no-DEG spot-splitting null, for Extended Data Fig 4a: Fig 1f's first 3 splits of each $p_\mathrm{split}$,
+rebuilt from the seeds in `split_null_per_split.csv`, the other three tests' FPR taken from that CSV over the same splits.
+About 3 minutes per MAST fit on one thread, four at a time (each takes about 1.5 GB); needs `R_HOME`; a rerun keeps the
+splits already in the CSV:
+
+```bash
+python -m kidney.split_null_mast              # about 25 minutes -> kidney/results/split_null_mast_per_split.csv
+python -m kidney.split_null_mast --plot-only  # split_null_mast_fpr.pdf
+```
+
 **These parameters come from the manuscript, not from the code.** `--n_cells_remove`, `--q` and
 `--lfc` are `required=True` with no defaults, so nothing in this repository records what was run;
 until 2026-09-24 the block above showed `50 / 0.1 / 1.0`, which were placeholders and matched no
@@ -430,7 +485,35 @@ python -m lymphnode.subsampling --config lymphnode/config_50rep.yaml --output-di
 python -m lymphnode.subsampling --config lymphnode/config_50rep.yaml --output-dir lymphnode/results --plot-only  # redraw figures from the CSV
 python -m lymphnode.ln_de_vs_rest   --input <h5ad> --output de.csv
 python -m lymphnode.cluster_de_gsea --input <h5ad> --output_de de.csv --output_gsea gsea.csv
+# the T-cell zone's reads thinned (p 0.2-0.9, every spot kept), the follicles whole: recovery and false calls; ~5 minutes
+python -m lymphnode.depth_imbalance --config lymphnode/config_50rep.yaml
+# the same conditions (10 replicates): each test's Hallmark GSEA of B over T against the pseudo-bulk reference's; ~10 minutes
+python -m lymphnode.depth_gsea --config lymphnode/config_50rep.yaml
+# the spot version: the T-cell zone's 2 um spots subsampled (p 0.4-0.9) above a filter floor; ~4 and ~7 minutes
+python -m lymphnode.depth_imbalance --config lymphnode/config_50rep.yaml --thin bins
+python -m lymphnode.depth_gsea --config lymphnode/config_50rep.yaml --thin bins
 ```
+
+### `published` — a published study's pathway figure, rerun
+
+Abdelfattah et al. 2022 (Nat Commun 13:767): their glioma myeloid clusters, their Fig. 4d Hallmark enrichments under the
+authors' procedure (genes ranked by the Wilcoxon AUC, fgsea on msigdbr's Hallmark sets, as their code ran it) and under
+LN, against each cluster's depth relative to the other
+myeloid cells, at the level of the gene ranking and of the enrichments; and a UMAP of the myeloid cells as the paper
+describes its embedding (Seurat and harmony in R, `published/R/abdelfattah2022_umap.R`), by cluster and by depth.
+
+```bash
+python -m fetch_data --arm published           # 2.5 GB: GEO GSE182109 and the authors' per-cell metadata
+python -m published.abdelfattah2022 --rankings # 1, the gene rankings and per-cluster tables; a few minutes
+Rscript published/R/abdelfattah2022_fgsea.R    # 2, the authors' fgsea on every ranking (msigdbr 7.5.1); a minute
+Rscript published/R/abdelfattah2022_umap.R     # 3, the myeloid UMAP (Seurat, harmony); several minutes
+python -m published.abdelfattah2022            # 4, the readouts and plots; seconds
+python -m published.abdelfattah2022 --claims   # the paper's Fig. 4d claims under the AUC, the Wilcoxon z and LN; seconds
+python -m published.abdelfattah2022 --calls    # each test's Bonferroni calls per cluster and the share up; a few minutes
+```
+
+Each plot is its own file in `published/results/` (`abdelfattah_*.pdf`), drawn by the module's `draw_*` functions; `figures.ed_abdelfattah` places them as an Extended Data figure.
+The CSVs and plots are listed in `published/results/checksums.sha256`, byte-identical across two runs.
 
 ### `theory` — illustrations, no data
 
@@ -446,19 +529,29 @@ The exemption is on the *code*, not the maths: where the manuscript prints a for
 
 ### `figures` — Fig 1, Fig 2 and the Extended Data figures, assembled
 
+`figures/results/paper/` holds the twelve figures the paper prints (Fig 1, Fig 2, Extended Data Figs 1-10),
+`figures/results/other/` the assembled figures it does not, and `figures/results/panels/` the parts every one of them
+is assembled from.
+
 ```bash
-python -m figures.fig1     # a few seconds -> figures/results/fig1.pdf and its panels fig1_{c..h}_*.pdf
-python -m figures.fig2     # a few seconds -> figures/results/fig2.pdf and its panels fig2_{b..i}_*.pdf
-python -m figures.ed1      # a few seconds -> figures/results/ed1.pdf and its panels ed1_{a..d}_*.pdf
-python -m figures.ed2      # a few seconds -> figures/results/ed2.pdf and its panels ed2_{a,b}_*.pdf
-python -m figures.ed3      # a few seconds -> figures/results/ed3.pdf and its panels ed3_{a..c}_*.pdf
-python -m figures.ed4      # a few seconds -> figures/results/ed4.pdf and its panels ed4_{a..d}_*.pdf
-python -m figures.ed5      # a few seconds -> figures/results/ed5.pdf and its panels ed5_{a..e}_*.pdf
-python -m figures.ed6      # a few seconds -> figures/results/ed6.pdf and its panel ed6_a_degs_summary.pdf
-python -m figures.ed7      # a few seconds -> figures/results/ed7.pdf and its panel ed7_a_lymphnode_runtime.pdf
-python -m figures.ed8      # a few seconds -> figures/results/ed8.pdf and its panels ed8_{a..d}_*.pdf
-python -m figures.ed9      # a few seconds -> figures/results/ed9.pdf and its panels ed9_{a,b}_*.pdf
-python -m figures.ed10     # a few seconds -> figures/results/ed10.pdf and its panels ed10_{a..f}_*.pdf
+python -m figures.fig1     # a few seconds -> figures/results/paper/fig1.pdf and its panels fig1_{c..h}_*.pdf
+python -m figures.fig2     # a few seconds -> figures/results/paper/fig2.pdf and its panels fig2_{b,c,de,f..i}_*.pdf (a: the lymph node images)
+python -m figures.ed1      # a few seconds -> figures/results/paper/ed1.pdf and its panels ed1_{a..d}_*.pdf
+python -m figures.ed2      # seconds -> figures/results/paper/ed2.pdf and its panels ed2_{a..c}_*.pdf
+python -m figures.ed3      # a few seconds -> figures/results/paper/ed3.pdf and its panels ed3_{a,b}_*.pdf
+python -m figures.ed4      # a few seconds -> figures/results/paper/ed4.pdf and its panels ed4_{a..d}_*.pdf
+python -m figures.ed5      # a few seconds -> figures/results/paper/ed5.pdf and its panels ed5_{a..e}_*.pdf
+python -m figures.ed6      # a few seconds -> figures/results/paper/ed6.pdf and its panels ed6_{a..f}_*.pdf
+python -m figures.ed7      # seconds -> figures/results/paper/ed7.pdf and its panels ed7_{a..g}_*.pdf
+python -m figures.ed8      # seconds -> figures/results/paper/ed8.pdf and its panels ed8_{a..d}_*.pdf
+python -m figures.ed9      # seconds -> figures/results/paper/ed9.pdf and its panels ed9_{a..h}_*.pdf
+python -m figures.ed10     # seconds -> figures/results/paper/ed10.pdf and its panels ed10_{a..e}*_*.pdf
+python -m figures.ed7 --pbmc10k-only   # seconds -> figures/results/other/ed7_pbmc10k.pdf, Extended Data Fig 7 without PBMC3k
+python -m figures.ed_abdelfattah   # seconds -> figures/results/other/ed_abdelfattah.pdf (the authors' Wilcoxon AUC against LN, every panel), ed_abdelfattah_wilcoxon_z.pdf and ed_abdelfattah_log1p.pdf, with their panels; unnumbered
+python -m figures.citeseq          # seconds -> figures/results/other/citeseq.pdf, the CITE-seq planted effects (Extended Data Fig 8 until 2026-10-08); unnumbered
+python -m figures.pbmc_lfc         # seconds -> figures/results/other/pbmc_lfc.pdf, the standalone PBMC figure (clustering.lfc_se, Fig 2's subcluster panels), with its panels
+python -m figures.pbmc_story       # seconds -> figures/results/other/pbmc_story.pdf, the PBMC block after the marker decision (clustering.multires_depth, clustering.lfc_se, clustering.marker_rule), with its panels
+python -m figures.lymphnode_story  # seconds -> figures/results/other/lymphnode_story.pdf, the lymph node block: AUPRC and GSEA against the fraction of T-cell zone reads kept (lymphnode.depth_imbalance, lymphnode.depth_gsea), with its panels; --thin bins for the spot version, lymphnode_story_bins.pdf
 ```
 
 Draws panels c-h from the arms' results — `synthetic_nb`'s `null_ratio` sweeps and `kidney`'s capsule figures and
@@ -474,36 +567,84 @@ method colours are keyed once, beside h. The letters are drawn over the panels, 
 The same panels at their own sizes, for the supplement or slides, are the arms' figures.
 Every figure shares `figures/layout.py`: the page width, the text sizes, the margins and the assembly.
 
-Fig 2 is two blocks in three columns: the lymph node (a diagram, b-d the pooled `precision`, `recall` and `auprc`
-against the pseudo-bulk reference, the method key) and PBMC10k, the clustering arm's second dataset (e diagram, f `n_sig_genes`, g `avg_lfc` on a log
-axis, h the false-positive rate on held-out negatives against the variance ratio from `clustering.heldout_fp`, i the
-all-significant-genes Jaccard heatmaps at 10 clusters), drawn by `lymphnode.subsampling.draw_pooled` and
-`clustering.plots.draw_box` and `draw_heatmap`. The two diagrams come from `Claude outputs/fig2-drafts/fig2_diagrams.py`,
-run in this environment; the lymph node one uses the full-resolution H&E (`python -m fetch_data --arm lymphnode`,
-`lymphnode-he-fullres`, 2.2 GB), the PBMC one the clustering arm's UMAP and Leiden clusters of either dataset.
+Fig 2 is three blocks, a row each. The lymph node, its spot version (`--thin bins`): a the section and a window on the
+full-resolution H&E with the T-cell zone's spots kept or dropped, keyed as Fig 1e (T cells, GC B cells); b each test's
+AUPRC of the T-cell zone's pseudo-bulk markers ("DGE AUPRC") and c its Hallmark NES correlation with the pseudo-bulk
+reference ("GSEA NES correlation"), against p_sub, the fraction of the T-cell zone's 2 µm spots kept, each the mean
+over the replicates with bars of one SD as Fig 1's error bars, on 0-1 (`lymphnode.depth_imbalance.draw_errorbar`,
+`lymphnode.depth_gsea.draw_agreement`); the method key right of c. PBMC10k (CITE-seq): d the UMAP coloured by the Leiden
+clusters at each of the five resolutions under an arrow of clustering resolution
+(`clustering.multires_gaps.draw_clusters`), and e under each the variance ratio of every cluster to the rest at equal
+mean (2 to the median |log2 variance ratio|, from 1 as Fig 1's Var(Y) / Var(X)), a box with every cluster a point
+(`clustering.multires_gaps.draw_gaps`); f the share of each rule's top 20 that are housekeeping genes and the share of
+the cluster's protein markers in it, the mean over each resolution's clusters with bars of one standard error, side by
+side (`clustering.marker_rule.draw_by_resolution`), the key of the four marker rules right of it; e and f space the
+resolutions evenly, labelled by their number of clusters. Abdelfattah et al. 2022, the Wilcoxon ranking genes by its
+tie-corrected z-score (Scanpy's `scores`, the counterpart of LN's LFC/SE): g the NES heatmaps of their Fig. 4d pathways
+under each test, on ±3 (`figures.ed_abdelfattah.heatmaps`); h per cluster, how many of those pathways keep their GSEA
+call under LN, lose it, reverse it or gain one (`published.abdelfattah2022.draw_call_changes`); i MC3 and MC4's NES in
+the contrasted pathways under each (`figures.ed_abdelfattah.contrast_by_cluster`). The authors' own ranking, the AUC, is
+Extended Data Fig 10 (Pedro, 2026-10-09). Panel a's images come from `Claude outputs/fig2-drafts/fig2_diagrams.py`, run in
+this environment, on the full-resolution H&E (`python -m fetch_data --arm lymphnode`, `lymphnode-he-fullres`, 2.2 GB).
 
 Extended Data Fig 1 assembles `synthetic_nb`'s `lfc_ci_ln`, `lfc_ci_log1p`, `degs_metrics_sparse` and `degs_metrics_dense`,
 each redrawn at its print size by its own drawing code (`lfc_confidence_intervals.draw`, `de_ratio.draw_metric`);
-Extended Data Fig 2 is `kidney`'s `capsule_qc`, its two panels as a and b, drawn from the saved `capsule_removal_scan.csv`
+Extended Data Fig 2 is MAST on a synthetic null and each test's runtime. a, b: the FPR of all four tests on genes of
+equal mean and unequal variance, in a null where only 150 of 1,500 genes change, so that MAST's detection-rate covariate
+does not absorb the group effect as it does when every gene changes (`synthetic_nb.null_mast`, `python -m
+synthetic_nb.null_mast`, about 7 minutes). c: each test's median wall time against the number of cells on sparse
+counts, each run as a user runs it (`python -m synthetic_nb.runtime --sparse`, about 5 minutes; without `--sparse`,
+dense mean-5 counts, `runtime.csv`); times depend on the machine.
+Extended Data Fig 3 is `kidney`'s `capsule_qc`, its two panels as a and b, drawn from the saved `capsule_removal_scan.csv`
 by `capsule_qc.draw_sizes` and `draw_scan`.
-Extended Data Fig 3 is `kidney`'s `split_degs_tpr_fpr`, `split_degs_ap_pr_auc` and `split_degs_pr_curves_grid`, drawn from
-the saved spot-splitting results by `spot_split_plots.draw_tpr_fpr`, `draw_ap_pr_auc` and `draw_pr_curve`.
-Extended Data Fig 4 is the UMI-downsampling counterpart in Fig 1 f-h's layout: `downsample_null_fpr_log`,
-`downsample_degs_100rep_pr_auc` and `_pr_curves` sharing one method key, and `downsample_degs_100rep_tpr_fpr`.
+The Extended Data are grouped by dataset (Pedro, 2026-10-07): synthetic (1, 2), kidney (3-5), lymph node (6), PBMC (7, 8),
+Abdelfattah et al. 2022 (9, 10). The CITE-seq gating panels left on 2026-10-08 and its two figures became one (8).
+Extended Data Fig 4 is kidney spot splitting in full: Fig 1f with MAST, over the first 3 splits of each $p_\mathrm{split}$
+(`kidney.split_null_mast`, via `figures.kidney_panels.null_fpr`); the no-DEG null's calibration (the share of null genes with
+uncorrected p below 0.05, `kidney.null_calibration.draw_calibration`, via `figures.kidney_panels.calibration`), and
+`split_degs_tpr_fpr` and `split_degs_pr_curves_grid`, drawn by `spot_split_plots.draw_tpr_fpr` and `draw_pr_curve`; the
+AUPRC is Fig 1g.
+Extended Data Fig 5 is the UMI-downsampling counterpart in Fig 1 f-h's layout: `downsample_null_fpr_log`, the AUPRC
+and `_pr_curves` sharing one method key; then the downsampling null's calibration and `downsample_degs_100rep_tpr_fpr`.
+Fig 1g and Extended Data Fig 5b are the AUPRC as Fig 2b's: each replicate's average precision (sklearn's), mean with
+bars of one SD (`spot_split_plots.draw_auprc`, from the results CSV's `ap_mean` and `ap_std`); the area under the mean PR
+curve (`draw_pr_auc`) stays in the arm's own figures only. Every AUPRC in the paper's figures is average precision:
+Fig 1g, Fig 2b, Extended Data Figs 5, 6 and 9.
 The rows the kidney figures share are in `figures/kidney_panels.py`.
-Extended Data Fig 5 is `citeseq`'s `gating_cd3`, `gating_cd4`, `gating_cd45ra`, `lfc_vs_true_all_methods` and
-`lfc_error_all_methods`, drawn by `citeseq.plots`' `draw_gating` and `draw_scatter`; Extended Data Fig 6 is its
-`degs_summary`, drawn by `draw_summary`.
-Extended Data Fig 7 is the lymph node's runtime, drawn by `lymphnode.subsampling.draw_pooled`.
-Extended Data Fig 8 is PBMC10k in full: the `avg_jaccard` box plots for all significant genes and the top 20
-(`clustering.plots.draw_box`) and the Jaccard heatmaps for
-all significant genes and for the top 20, a method per row and a resolution per column, on the arm's colour scale
-(`draw_heatmap`, labelled on the grid's outer edge by `label_heatmap_grid`).
-Extended Data Fig 9 is PBMC10k's held-out false positives in full, with the Wilcoxon without tie correction (scanpy's
-current default): by cluster size, by the tolerance that makes a gene a negative, and by multiple-testing correction
-(Bonferroni, BH, none; `clustering.heldout_fp.draw_fpr`).
-Extended Data Fig 10 is PBMC3k, the sparser first dataset: its DEG counts, mean |LFC|, both Jaccard box plots and its
-held-out false positives, pooled and by cluster size, with the Wilcoxon without tie correction.
+Extended Data Fig 6 is the lymph node in full: Fig 2's spot version's AUPRC for T cells and B cells and its calls
+outside the reference markers (`per_task_false_calls`); the read version's AUPRC for both compartments and its GSEA agreement
+(`--thin reads`), in Fig 1's error bars. Equal thinning (`lymphnode.subsampling`, both compartments thinned alike) left
+the Extended Data on 2026-10-08; its arm figures stay.
+PBMC10k is one dataset, 10x Genomics' 5' PBMC 10k, a CITE-seq run (RNA and surface protein in the same cells): the
+`clustering` arm clusters and tests its RNA and takes its protein as a truth (Fig 2d-f); the `citeseq` arm selects its
+memory CD4 T cells by protein and plants effects in their RNA (`figures.citeseq`, unnumbered). The figures call it PBMC10k
+(CITE-seq).
+Extended Data Fig 7 is the PBMC clustering beyond Fig 2: PBMC3k's variance ratio by resolution (Fig 2e for PBMC3k),
+each cluster's variance ratio against its |log2 depth ratio| in both datasets (`clustering.multires_gaps.draw_gap_vs_depth`),
+each test's median score against the cluster's depth ratio in both datasets (`clustering.multires_depth.draw_depth`;
+PBMC10k's was Fig 2e until 2026-10-07), PBMC3k's housekeeping fraction (Fig 2f for PBMC3k) and the HPA fraction in
+both datasets, and two keys. The thinned random halves' calibration
+(`clustering.exact_null`) left on 2026-10-08; its arm figures stay.
+LN's top 10 lists, the PBMC3k-to-PBMC10k marker replication and the recovery per protein left the Extended Data on
+2026-10-07; they stay in `figures.pbmc_story` and the arms' own figures.
+Extended Data Fig 8 is the PBMC clusters' DEGs and their effect sizes, both datasets (`clustering.effect_sizes`): each
+test's significant genes per cluster over the mean |LFC| of those genes as each package reports it, each box under
+its counterpart. The CITE-seq planted effects (`citeseq`'s LFC against the truth and detection summary, Extended Data
+Fig 8 until 2026-10-08) are `figures.citeseq`'s unnumbered figure; the ADT gating is `citeseq/results/adt_gating.csv`.
+Extended Data Fig 9 is the Abdelfattah et al. 2022 rerun beyond Fig 2: the UMAP by cluster and by depth, each
+cluster's depth ratio and its variance ratio at equal mean against |log2 depth ratio| with its least-squares line
+(`python -m published.abdelfattah2022 --variance`, as Fig 2e's); each cluster's DEGs under the Wilcoxon and LN, as
+the depth-ratio bars, each test's DEGs against the cluster's cells, and the Wilcoxon's over LN's against |log2 depth
+ratio| (`published.abdelfattah2022 --calls`);
+then the gene-level Wilcoxon z and LN score against depth, and each cluster's Hallmark NES against depth
+(`published.abdelfattah2022`), the z as in Fig 2g-i.
+Extended Data Fig 10 is the authors' own procedure, the Wilcoxon AUC ranking the genes for fgsea, against LN: the
+heatmaps (on ±5, the published figure's range), the call changes and MC3 and MC4's contrast, as Fig 2g-i; then the
+gene-level AUC and LN score, and each cluster's Hallmark NES, against depth, as Extended Data Fig 9g, h.
+`figures.ed_abdelfattah` builds the same rerun with every panel, and with the
+Wilcoxon's z or the log1p t-test in place of the AUC; those three are unnumbered.
+The held-out false positives and the Jaccard figures are in no figure; their arm
+outputs stay.
 A change to a panel is made in the arm's drawing code, so the arm's own figure changes with it; the `figures/`
 scripts only place panels and set what is figure-wide (page, text size, a key shared by several panels).
 
@@ -539,7 +680,7 @@ hold, and each is easy to undo by accident:
 - `lymphnode/subsampling.py` sorts its results before writing, because workers finish in any order.
 
 The exceptions: `lymphnode/results/runtime.pdf`, the `de_time_s` columns of the lymph node CSVs,
-and a timing field in its metadata JSON.
+a timing field in its metadata JSON, and `synthetic_nb`'s `runtime*.csv` and `runtime_scaling*.pdf`.
 
 The checksums of the current outputs are in each arm's `results/checksums.sha256`, outside git; verify one
 with `shasum -a 256 -c <arm>/results/checksums.sha256`. The committed `reference/` holds the

@@ -17,6 +17,8 @@ FANOS = [1, 2, 4, 8]  # ratio grid: Var(X) as multiples of the mean; 1 is Poisso
 # Var(Y)/Var(X), a quarter-octave apart. Ratios below 1 would repeat these settings
 # with the groups swapped: every test is two-sided and the groups are the same size.
 RATIOS = 2.0 ** np.linspace(0, 4, 17)
+# Past 16, so every Wilcoxon curve saturates too; drawn after the whole RATIOS grid, so its values are unchanged.
+EXTRA = 2.0 ** np.linspace(4.25, 6, 8)
 # The tests each grid runs: the ratio grid is Fig 1c's; the dispersion grid reproduces RECOMB Fig 1, which had two.
 TESTS = {'ratio': ('log1p t-test', "LN's t-test", 'Wilcoxon'), 'dispersion': ('log1p t-test', "LN's t-test")}
 
@@ -35,7 +37,7 @@ def d1_grid(base_mu, grid):
     return (np.array(FANOS) - 1) / base_mu
 
 
-def d2_grid(d1, base_mu, grid):
+def d2_grid(d1, base_mu, grid, ratios=RATIOS):
     """Dispersions of Y to simulate against X's dispersion d1.
 
     'dispersion' is the grid behind the RECOMB figure: the same Var(Y) values
@@ -44,7 +46,7 @@ def d2_grid(d1, base_mu, grid):
     if grid == 'dispersion':
         return np.linspace(0.0001, 2, 20)
     var_x = d1 * base_mu ** 2 + base_mu
-    return (RATIOS * var_x - base_mu) / base_mu ** 2
+    return (ratios * var_x - base_mu) / base_mu ** 2
 
 
 def adjusted_pvalues(X, Y, test):
@@ -63,33 +65,36 @@ def score(adj_pvals, true_lfcs, metric):
     return get_test_results(adj_pvals, true_lfcs, verbose=False)[metric]
 
 
-def simulate(base_mu, metric, seed=0, grid='ratio'):
-    """One row per (Var(X), Var(Y), test): the metric over N_GENES null genes."""
+def draws(base_mu, seed=0, grid='ratio'):
+    """Every condition's X and Y in the sweep's order, one random stream: (Var(X), Var(Y), X, Y) per condition, a
+    Var(X)'s conditions consecutive."""
     np.random.seed(seed)
     mu1 = base_mu + np.zeros((1, N_GENES))
-    mu2 = base_mu
-    true_lfcs = np.log2(mu2 / mu1)
-
     d1_list = d1_grid(base_mu, grid)
     var_1 = d1_list * base_mu ** 2 + base_mu
+    for ratios in ((RATIOS, EXTRA) if grid == 'ratio' else (RATIOS,)):
+        for i, d1 in enumerate(d1_list):
+            d2_list = d2_grid(d1, base_mu, grid, ratios)
+            var_2 = d2_list * base_mu ** 2 + base_mu
+            for k, d2 in enumerate(d2_list):
+                X = draw_nb(mu1, d1, (NX, N_GENES))
+                Y = draw_nb(base_mu, d2, (NY, N_GENES))
+                yield var_1[i], var_2[k], X, Y
 
-    rows = []
-    for i, d1 in enumerate(d1_list):
-        d2_list = d2_grid(d1, base_mu, grid)
-        var_2 = d2_list * base_mu ** 2 + base_mu
-        results = {test: [] for test in TESTS[grid]}
-        for d2 in d2_list:
-            X = draw_nb(mu1, d1, (NX, N_GENES))
-            Y = draw_nb(mu2, d2, (NY, N_GENES))
-            for test in results:
-                results[test] += [score(adjusted_pvalues(X, Y, test), true_lfcs, metric)]
 
-        for test in results:
-            rows += [
-                {'base_mu': base_mu, 'metric': metric, 'var_x': var_1[i],
-                 'var_y': vy, 'method': test, 'value': v}
-                for vy, v in zip(var_2, results[test])
-            ]
+def simulate(base_mu, metric, seed=0, grid='ratio'):
+    """One row per (Var(X), Var(Y), test): the metric over N_GENES null genes; within a Var(X)'s run, each test's
+    values over Var(Y) together, as the sweep has always written them."""
+    true_lfcs = np.zeros((1, N_GENES))
+    rows, run, current = [], [], None
+    for var_x, var_y, X, Y in draws(base_mu, seed, grid):
+        if var_x != current and run:
+            rows += sorted(run, key=lambda r: TESTS[grid].index(r['method']))
+            run = []
+        current = var_x
+        run += [{'base_mu': base_mu, 'metric': metric, 'var_x': var_x, 'var_y': var_y, 'method': test,
+                 'value': score(adjusted_pvalues(X, Y, test), true_lfcs, metric)} for test in TESTS[grid]]
+    rows += sorted(run, key=lambda r: TESTS[grid].index(r['method']))
     return pd.DataFrame(rows)
 
 

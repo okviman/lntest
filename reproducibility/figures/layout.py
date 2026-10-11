@@ -4,6 +4,9 @@ Panels are drawn at the size they print at, so their text prints at the size it 
 labels, ticks and titles, plot_style's SMALL for legends. Axes are placed in inches (axes_at), so panels in
 different files line up. assemble() places each row's panel PDFs left to right, top-aligned, the rows top to
 bottom, and stops if a row is wider than the figure.
+
+Outputs go to figures/results/: paper/ the figures the paper prints (PAPER), other/ every other assembled figure,
+panels/ the parts they are assembled from.
 """
 
 import io
@@ -26,6 +29,7 @@ ROW_GAP = 0.1
 PLOT = dict(left=0.6, bottom=0.42, top=0.13, right=0.1)  # margins around a plot's axes
 ROW_H = 1.7      # a row of plots with PLOT's margins
 KEY_W = 0.9      # a method key right of a row's last axes
+PAPER = ('fig1', 'fig2', *(f'ed{k}' for k in range(1, 11)))   # the assembled figures the paper prints
 
 
 def use():
@@ -40,9 +44,16 @@ def axes_at(fig, left, bottom, width, height, **kw):
     return fig.add_axes([left / W, bottom / H, width / W, height / H], **kw)
 
 
+def out_dir(sub):
+    """figures/results/<sub>, made if missing."""
+    d = results_dir(__file__) / sub
+    d.mkdir(exist_ok=True)
+    return d
+
+
 def save(fig, name):
     # PDF whatever LNTEST_FIG_FORMAT says: assemble() places PDF pages
-    out = results_dir(__file__) / f'{name}.pdf'
+    out = out_dir('panels') / f'{name}.pdf'
     fig.savefig(out, dpi=600)  # no tight bounding box: the file is its slot
     plt.close(fig)
     w, h = fig.get_size_inches()
@@ -90,7 +101,7 @@ def assemble(rows, name, width=WIDTH, gap=ROW_GAP):
     page.merge_page(PdfReader(overlay).pages[0])
     writer = PdfWriter()
     writer.add_page(page)
-    out = results_dir(__file__) / f'{name}.pdf'
+    out = out_dir('paper' if name in PAPER else 'other') / f'{name}.pdf'
     with open(out, 'wb') as fh:
         writer.write(fh)
     print(f'wrote {out} ({width:.2f} x {total:.2f} in, {width * 25.4:.0f} x {total * 25.4:.0f} mm)')

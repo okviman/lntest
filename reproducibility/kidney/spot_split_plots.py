@@ -250,6 +250,18 @@ def draw_pr_curves(ax, curves, methods, p_values_json):
     return selected_p, linestyle_map
 
 
+def draw_auprc(ax, df, p_symbol=SPLIT, odds=False):
+    """AUPRC against p: each method's mean over the replicates of its average precision (sklearn's, as the lymph node's
+    AUPRC), with bars of one SD."""
+    for method in method_draw_order(df['method']):
+        d = df[df['method'] == method].sort_values('p')
+        ax.errorbar(p_axis(d['p'], p_symbol, odds)[0], d['ap_mean'], yerr=d['ap_std'], color=method_color(method),
+                    **plot_style.ERRORBAR)
+    ax.set_xlabel(p_axis([], p_symbol, odds)[1])
+    ax.set_ylabel('AUPRC')
+    ax.set_ylim([0, 1])
+
+
 def draw_pr_auc(ax, curves, methods, p_values_json, p_symbol=SPLIT, odds=False):
     """PR-AUC against p: the area under each p's mean PR curve, with bars of one SD of the replicates' areas."""
     # PR-AUC vs p (recomputed from JSON PR curves)

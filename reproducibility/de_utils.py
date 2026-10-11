@@ -142,9 +142,13 @@ def run_mast_de(
     group_2=None,
     log1p_layer="log1p_norm",
     key_added="mast",
+    cdr=True,
 ):
     """
     Run MAST differential expression via rpy2.
+
+    - cdr: include the cellular detection rate as a covariate (~ group + cngeneson), as MAST's vignette does;
+      False fits ~ group, as Seurat's FindMarkers(test.use="MAST") does by default.
 
     - If group_1 and group_2 are provided: two-group comparison (group_1 vs group_2).
       Writes result to adata.uns[key_added] and returns it.
@@ -156,6 +160,7 @@ def run_mast_de(
     if not _HAS_RPY2:
         raise ImportError("run_mast_de requires rpy2. Install with: pip install rpy2")
     importr("MAST")
+    ro.globalenv["use_cdr"] = ro.BoolVector([cdr])
 
     if log1p_layer not in adata.layers:
         raise ValueError(f"Layer '{log1p_layer}' not found in adata.layers")
@@ -201,7 +206,8 @@ def run_mast_de(
         colData(sca)$group <- factor(colData(sca)$group, levels = c("rest", "target"))
         cdr <- colSums(assay(sca) > 0)
         colData(sca)$cngeneson <- scale(cdr)
-        zlmCond <- zlm(~ group + cngeneson, sca)
+        # every gene detected in every cell (dense synthetic data) leaves the detection rate constant and unscalable
+        zlmCond <- if (use_cdr && sd(cdr) > 0) zlm(~ group + cngeneson, sca) else zlm(~ group, sca)
         summaryCond <- summary(zlmCond, doLRT = "grouptarget")
         summaryDt <- summaryCond$datatable
         fcHurdle <- merge(
@@ -276,7 +282,8 @@ def run_mast_de(
         colData(sca)$group <- factor(colData(sca)$group, levels = c("rest", "target"))
         cdr <- colSums(assay(sca) > 0)
         colData(sca)$cngeneson <- scale(cdr)
-        zlmCond <- zlm(~ group + cngeneson, sca)
+        # every gene detected in every cell (dense synthetic data) leaves the detection rate constant and unscalable
+        zlmCond <- if (use_cdr && sd(cdr) > 0) zlm(~ group + cngeneson, sca) else zlm(~ group, sca)
         summaryCond <- summary(zlmCond, doLRT = "grouptarget")
         summaryDt <- summaryCond$datatable
         fcHurdle <- merge(

@@ -12,7 +12,7 @@ than the figure stops the script instead of overlapping.
     python -m figures.fig1      # from reproducibility/, a few seconds; needs the arms' results
 
 Reads synthetic_nb/results (null_ratio's sweeps), kidney/data (the capsule figures) and
-kidney/results (the spot-splitting runs), and writes figures/results/fig1_*.pdf and fig1.pdf.
+kidney/results (the spot-splitting runs), and writes figures/results/panels/fig1_*.pdf and figures/results/paper/fig1.pdf.
 """
 
 import json
@@ -85,14 +85,16 @@ def panels_de():
 
 
 def plot_row():
-    """f, g and h: the spot-splitting FPR, PR-AUC and PR curves, with equal axes; the keys beside h."""
+    """f, g and h: the spot-splitting FPR, AUPRC and PR curves, with equal axes; the keys beside h."""
     null = require_input(KIDNEY / 'split_null_results.csv', what='the no-DEG spot-splitting results',
                          source='python -m kidney.spot_split (see README)')
+    results = require_input(KIDNEY / 'split_degs_results.csv', what='the with-DEG spot-splitting results',
+                            source='python -m kidney.spot_split (see README)')
     json_file = require_input(KIDNEY / 'split_degs_pr_curve_data.json', what='the with-DEG PR curves',
                               source='python -m kidney.spot_split (see README)')
     curve_data = json.load(open(json_file))
-    return null_auc_curves(pd.read_csv(null), curve_data, SPLIT,
-                           ('fig1_f_split_null_fpr', 'fig1_g_split_pr_auc', 'fig1_h_split_pr_curves'))
+    return null_auc_curves(pd.read_csv(null), pd.read_csv(results), curve_data, SPLIT,
+                           ('fig1_f_split_null_fpr', 'fig1_g_split_auprc', 'fig1_h_split_pr_curves'))
 
 
 if __name__ == '__main__':

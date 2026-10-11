@@ -148,6 +148,8 @@ YLABELS = {"precision": "Precision", "recall": "Recall", "de_time_s": "DE time (
 def draw_pooled(ax, df, y_col, ylabel):
     """One metric against p_sub, both compartments pooled, a box per method at each p_sub."""
     _plot_box_pandas(df, "fraction", y_col, "method", ax=ax)
+    if y_col in ("auprc", "recall"):
+        ax.set_ylim(0, 1)   # as every AUPRC in the paper; precision keeps its own range, all near 1
     ax.set_xlabel(r"$p_\mathrm{sub}$")
     ax.set_ylabel(ylabel)
     plot_style.boxplot_grid(ax)

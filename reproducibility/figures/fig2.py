@@ -1,127 +1,171 @@
-"""Fig 2: the Visium HD lymph node and PBMC10k, a block each, assembled from the arms' existing figures.
+"""Fig 2: the Visium HD lymph node, PBMC10k's multi-resolution clustering and the Abdelfattah et al. 2022 rerun, a block
+each, assembled from the arms' drawing code.
 
-Three columns, four rows, within 170 mm. Lymph node block: a, the experiment's diagram (two columns); b-d the
-pooled precision, recall and AUPRC against the pseudo-bulk reference (lymphnode.subsampling), the method key beside d. PBMC10k block, the clustering
-arm's second dataset (clustering/config_pbmc10k.yaml; PBMC3k is in Extended Data): e, the diagram; f n_sig_genes,
-g avg_lfc (log scale), h the false-positive rate on held-out negatives against the variance ratio, Bonferroni
-(clustering.heldout_fp; BH in Extended Data Fig 9c); i the Jaccard heatmaps for all significant genes at 10 clusters, one per method, on the
-colour scale they share (clustering.plots; every resolution is in Extended Data). Each plot is drawn by its own drawing code from the saved results, at the size it
-prints at; a change to a plot belongs in that code.
+Lymph node (lymphnode.depth_imbalance and depth_gsea, the spot version: the T-cell zone's 2 um spots kept with
+probability p_sub, the B-cell follicles' all): a, the experiment's diagram; b, each test's AUPRC of the T-cell zone's
+pseudo-bulk markers against p_sub; c, the Spearman correlation of each test's Hallmark NES with the pseudo-bulk
+reference's (NES agreement); b and c the mean over the replicates with bars of one SD, as Fig 1's error bars. PBMC10k:
+d, the diagram; e, every cluster at five Leiden resolutions, its variance ratio to the rest at equal mean (2 to the
+median |log2 variance ratio| over the genes whose means agree within 7%, from 1 as Fig 1's Var(Y) / Var(X)), a box at
+each number of clusters, every cluster a point (clustering.multires_gaps); f, the share of each rule's top 20 that are
+housekeeping genes and the share of the cluster's protein markers in it, the mean over each resolution's clusters with
+bars of one standard error, side by side (clustering.marker_rule; LN's markers and LN's score in its colour); e and f
+space the resolutions evenly. Abdelfattah et al. 2022 (published.abdelfattah2022): g, the NES heatmaps of their Fig. 4d
+pathways, their GSEA run as the authors ran it on the Wilcoxon's z-score (scanpy's score) and on LN's score, in square
+cells on one colour range, the sets by short names; h, per cluster, how many of those pathways keep their call (FDR <
+0.05) under LN, lose it, reverse it or gain one; i, MC3 over MC4 in the pathways behind the interpretation the rerun
+contradicts, on one x axis, the Wilcoxon's and LN's NES side by side. The authors' own ranking, the Wilcoxon AUC, is
+Extended Data Fig 10.
+A method key right of c, a key of the marker rules right of f. Each plot is drawn by its own drawing code from the saved results, at the size it prints at; a change to a
+plot belongs in that code.
 
-The diagrams are drawn elsewhere and read as PDFs from `Claude outputs/` (fig2-drafts/fig2_diagrams.py).
+Panel a's images are drawn elsewhere and read as a PDF from `Claude outputs/` (fig2-drafts/fig2_diagrams.py).
 
-    python -m figures.fig2      # from reproducibility/, a few seconds; needs lymphnode's and clustering's results
+    python -m figures.fig2      # from reproducibility/, a few seconds; needs the lymph node, clustering and published results
 """
 
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
-import yaml
-from matplotlib.cm import ScalarMappable
-from matplotlib.colors import Normalize
-from matplotlib.patches import Patch
+from matplotlib.lines import Line2D
+from matplotlib.patches import FancyArrowPatch
 
-from clustering import heldout_fp as hf
-from clustering import plots as cp
-from figures.layout import LETTER, PLOT, TEXT, WIDTH, assemble, axes_at, save, use
-from lymphnode import subsampling as ln
-from method_colors import method_color, method_label, method_order
-from paths import require_input, results_dir
+import plot_style
+from clustering import lfc_se as ls
+from clustering import marker_rule as mk
+from clustering import multires_gaps as mg
+from figures import ed_abdelfattah as ea
+from figures.layout import LETTER, LETTER_PT, PLOT, WIDTH, assemble, axes_at, pdf_size, save, use
+from lymphnode import depth_gsea as dg
+from lymphnode import depth_imbalance as di
+from method_colors import method_color, method_label
+from paths import require_input
+from published import abdelfattah2022 as ab
 
-LYMPH = results_dir(ln.__file__)
-CLUSTERING = results_dir(cp.__file__)
-PBMC = CLUSTERING / 'pbmc10k'     # the PBMC block's dataset
-OUTSIDE = Path(__file__).resolve().parents[3] / 'Claude outputs'  # the two diagrams
-COL = WIDTH / 3
-ROWS = (1.42, 1.25, 1.91, 1.9)     # a-b, c-d, e-g, h-i: each tall enough for its labels, within 170 mm together
-TOPS = (0.13, 0.13, 0.25, 0.25)    # room above each row's axes; the PBMC labels run past their axes
-HEAT = dict(left=0.3, gap=0.25, cbar=0.66, top=0.35, bottom=0.84)  # i's margins, in inches
-HEAT_LABEL = 5                     # i's cell types, in points: Nature's smallest text
+THIN = 'bins'                      # the lymph node version in the figure; 'reads' for the read-thinning one
+OUTSIDE = Path(__file__).resolve().parents[3] / 'Claude outputs'  # the lymph node's images
+ROW_A, ROW_B = 1.42, 2.1           # the lymph node row (its images' height) and the PBMC row
+F_W = 3.05                         # f's width; d and e take the rest of the row
+HEAT_COL, CBAR_LABELS = 0.1, 0.42  # g's heatmap columns and the room for its colour bar's labels, narrowed for i
+COMP, HEAT_VMAX = 'wilcoxon_z', 3   # the Wilcoxon as scanpy scores it, and g's colour range for its and LN's NES
+KEY_W = 0.85                       # a key's slot, right of c and of f
+F = (('housekeeping', 'Fraction of top 20'), ('protein_recall', 'Recall in top 20'))   # f's plots, side by side
+TOP = 0.25                         # room above a plot's axes for its title
 GAP = 0.06                         # between rows
-HEAT_CLUSTERS = '10'
 
 
-def panel(draw, stem, row):
-    """One plot in a one-column slot of this row, drawn by draw(ax); returns its file and the labels its key had."""
-    h = ROWS[row]
-    fig = plt.figure(figsize=(COL, h))
-    ax = axes_at(fig, PLOT['left'], PLOT['bottom'], COL - PLOT['left'] - PLOT['right'], h - PLOT['bottom'] - TOPS[row])
+def read(path, what, source, **kw):
+    return pd.read_csv(require_input(path, what=what, source=source), **kw)
+
+
+def panel(draw, title, stem, width, height, left=PLOT['left']):
+    """One plot in a slot of the given size, titled if title; any legend it drew is dropped for the figure's key."""
+    fig = plt.figure(figsize=(width, height))
+    top = TOP if title else PLOT['top']
+    ax = axes_at(fig, left, PLOT['bottom'], width - left - PLOT['right'], height - PLOT['bottom'] - top)
     draw(ax)
-    labels = [t.get_text() for t in ax.get_legend().get_texts()] if ax.get_legend() else []
+    if title:
+        ax.set_title(title)
     if ax.get_legend():
-        ax.get_legend().remove()  # one key for the figure
-    return save(fig, stem), labels
-
-
-def key_panel(labels, stem, row):
-    """The one method key, in a slot of its own."""
-    h = ROWS[row]
-    fig = plt.figure(figsize=(COL, h))
-    methods = method_order(labels)
-    fig.legend([Patch(facecolor=method_color(m)) for m in methods], methods, title='Method', loc='upper left',
-               bbox_to_anchor=(PLOT['left'] / COL, 1 - TOPS[row] / h), alignment='left')
+        ax.get_legend().remove()
     return save(fig, stem)
 
 
-def heatmap_panel(metrics, keys, cluster_count, stem, row):
-    """i: each method's Jaccard heatmap for all significant genes at HEAT_CLUSTERS clusters, without the cluster
-    numbers, on one colour scale over the three."""
-    groups = cp.heatmap_groups(str(metrics), 'jaccard_matrix', keys)
-    rk = next(r for r in keys if cluster_count(r) == HEAT_CLUSTERS)
-    vmax = cp.shared_vmax(groups, 'allsig', rk)
-    methods = method_order([method_label(m) for m in cp.KNOWN_METHODS if ('allsig', m) in groups])
-    by_label = {method_label(m): m for m in cp.KNOWN_METHODS}
-    w, h = 2 * COL, ROWS[row]
-    n = len(methods)
-    hw = (w - HEAT['left'] - (n - 1) * HEAT['gap'] - HEAT['cbar']) / n
-    hh = h - HEAT['top'] - HEAT['bottom']
-    fig = plt.figure(figsize=(w, h))
-    for k, label in enumerate(methods):
-        _, mats = groups[('allsig', by_label[label])]
-        cp.draw_heatmap(axes_at(fig, HEAT['left'] + k * (hw + HEAT['gap']), HEAT['bottom'], hw, hh), mats[rk], vmax,
-                        label, cluster_numbers=False, label_size=HEAT_LABEL)
-    fig.text((HEAT['left'] + (n * hw + (n - 1) * HEAT['gap']) / 2) / w, 1 - 0.03 / h, f'{HEAT_CLUSTERS} clusters',
-             ha='center', va='top', fontsize=TEXT)
-    cax = axes_at(fig, w - HEAT['cbar'] + 0.06, HEAT['bottom'], 0.08, hh)
-    fig.colorbar(ScalarMappable(cmap='viridis', norm=Normalize(0, vmax)), cax=cax, label='Jaccard Index')
+def beside(draws, stem, width, height, left=PLOT['left'], gap=0.45, ylabel=None, xlabel=None):
+    """Plots side by side in one slot, each with its own y scale and title; ylabel and xlabel, if given, one each for
+    all of them."""
+    fig = plt.figure(figsize=(width, height))
+    n = len(draws)
+    w = (width - left - PLOT['right'] - gap * (n - 1)) / n
+    for k, draw in enumerate(draws):
+        ax = axes_at(fig, left + k * (w + gap), PLOT['bottom'], w, height - PLOT['bottom'] - TOP)
+        draw(ax)
+        if xlabel:
+            ax.set_xlabel('')
+    if ylabel:
+        fig.text(0.12 / width, (PLOT['bottom'] + (height - TOP)) / 2 / height, ylabel, rotation=90, ha='center',
+                 va='center')
+    if xlabel:
+        fig.text((left + width - PLOT['right']) / 2 / width, 0.08 / height, xlabel, ha='center', va='bottom')
+    return save(fig, stem)
+
+
+def umaps_over_boxes(umap, clusters, gaps, width, height, stem):
+    """d, the UMAP coloured by its clusters at each resolution, side by side under an arrow of increasing resolution; e,
+    below, the variance ratio at each resolution, each box under its UMAP; with the letter strip, e's letter drawn
+    here."""
+    fig = plt.figure(figsize=(width, height))
+    left, right = LETTER + 0.45, PLOT['right']
+    cw = (width - left - right) / clusters.shape[1]                  # one column per resolution
+    span = umap.max(0) - umap.min(0)
+    uw = cw - 0.06
+    uh = uw * span[1] / span[0]
+    band = 0.27                                                       # the arrow and its label, above the UMAPs
+    bottom = height - band - uh
+    for k, key in enumerate(clusters.columns):
+        mg.draw_clusters(axes_at(fig, left + k * cw + 0.03, bottom, uw, uh), umap, clusters[key])
+    y = (height - 0.21) / height
+    fig.add_artist(FancyArrowPatch(((left + 0.03) / width, y), ((width - right - 0.03) / width, y),
+                                   transform=fig.transFigure, arrowstyle='-|>', mutation_scale=7, lw=0.8, color='0.3'))
+    fig.text((left + width - right) / 2 / width, 1 - 0.02 / height, 'Clustering resolution', ha='center', va='top')
+    top = bottom - 0.14
+    mg.draw_gaps(axes_at(fig, left, PLOT['bottom'], width - left - right, top - PLOT['bottom']), gaps, 'PBMC10k',
+                 'gap_equal_mean')
+    fig.text(0, (top + 0.1) / height, 'e', fontsize=LETTER_PT, fontweight='bold', ha='left', va='top')
+    return save(fig, stem)
+
+
+def key(entries, height, stem):
+    """A key in a slot of its own, its entries from the top, as Fig 1's: (colour, alpha, label) each."""
+    fig = plt.figure(figsize=(KEY_W, height))
+    line = dict(marker='o', ms=plot_style.ERRORBAR['ms'], lw=plot_style.ERRORBAR['lw'])
+    labels = [l.replace(' (score rank)', '\n(score rank)') for _, _, l in entries]   # fits the slot
+    fig.legend([Line2D([], [], color=c, alpha=a, **line) for c, a, _ in entries], labels,
+               loc='upper left', bbox_to_anchor=(0, 1 - TOP / height), frameon=False, fontsize=plot_style.SMALL,
+               handlelength=1.4, borderaxespad=0)
     return save(fig, stem)
 
 
 if __name__ == '__main__':
     use()
-    raw = pd.read_csv(require_input(LYMPH / 'subsampling_results_raw.csv', what='the lymph node subsampling results',
-                                    source='python -m lymphnode.subsampling (see README)'))
-    config = yaml.safe_load(open(require_input(CLUSTERING.parent / 'config_pbmc10k.yaml', what='the PBMC10k clustering config',
-                                               source='the clustering arm')))
-    metrics = PBMC / 'metrics'
-    keys, order, _, cluster_count = cp.resolution_axis(str(metrics), config)
-    diagrams = {name: require_input(OUTSIDE / f'fig2_{name}_diagram.pdf', what=f'the {name} diagram',
-                                    source='Claude outputs/fig2-drafts/fig2_diagrams.py')
-                for name in ('lymphnode', 'pbmc10k')}
+    images = require_input(OUTSIDE / 'fig2_lymphnode_diagram.pdf', what="the lymph node's images",
+                           source='Claude outputs/fig2-drafts/fig2_diagrams.py')
+    umap, clusters = mg.umap_clusters('PBMC10k')
+    source = f'python -m lymphnode.{{}} --config lymphnode/config_50rep.yaml --thin {THIN}'
+    results = read(di.OUTS[THIN] / 'results.csv', 'the depth-imbalance results', source.format('depth_imbalance'))
+    gsea = read(dg.OUTS[THIN] / 'agreement.csv', 'the depth-GSEA agreement', source.format('depth_gsea'))
+    gaps = read(mg.OUT / 'comparisons.csv', 'the multires_gaps comparisons', 'python -m clustering.multires_gaps')
+    per = read(mk.OUT / 'per_list.csv', 'the marker_rule per-list table', 'python -m clustering.marker_rule')
+    t = ab.tables()
 
-    heldout = pd.read_csv(require_input(metrics / hf.CSV, what='the PBMC10k held-out false positives',
-                                        source='python -m clustering.heldout_fp (see README)'))
+    # the lymph node: the diagram, then two plots in the rest of the row
+    w = (WIDTH - LETTER - pdf_size(images)[0] - KEY_W) / 2
+    b = panel(lambda ax: di.draw_errorbar(ax, results[results['cluster'] == di.T_ZONE], 'auprc',
+                                     'DGE AUPRC', di.XLABEL[THIN]),
+              None, 'fig2_b_lymphnode_auprc', w, ROW_A)
+    c = panel(lambda ax: dg.draw_agreement(ax, gsea, thin=THIN, ylabel='GSEA NES\ncorrelation'), None,
+              'fig2_c_lymphnode_gsea', w, ROW_A)
 
-    def box(csv, ycol, title=None, log=False):
-        df = pd.read_csv(require_input(metrics / csv, what=f'the PBMC10k {csv}', source='python -m clustering.metrics'))
-        return lambda ax: cp.draw_box(ax, df, ycol, cp.YLABELS[ycol], title, order, cluster_count, log=log)
+    # PBMC10k: the clusters at each resolution over their variance ratios, the top 20s against resolution
+    de = umaps_over_boxes(umap, clusters, gaps, WIDTH - F_W - KEY_W, ROW_B, 'fig2_de_pbmc10k_clusters_gap')
+    f_draws = []
+    for metric, ylabel in F:
+        def draw(ax, metric=metric, ylabel=ylabel):
+            mk.draw_by_resolution(ax, per, 'PBMC10k', metric, ylabel=ylabel)
+            ax.set_title(mk.TITLES[metric])
+        f_draws.append(draw)
+    f = beside(f_draws, 'fig2_f_pbmc10k_markers', F_W, ROW_B, left=0.5, gap=0.55, xlabel='Number of clusters')
 
-    plots = {
-        'b': (lambda ax: ln.draw_pooled(ax, raw, 'precision', ln.YLABELS['precision']), 'fig2_b_lymphnode_precision', 0),
-        'c': (lambda ax: ln.draw_pooled(ax, raw, 'recall', ln.YLABELS['recall']), 'fig2_c_lymphnode_recall', 1),
-        'd': (lambda ax: ln.draw_pooled(ax, raw, 'auprc', ln.YLABELS['auprc']), 'fig2_d_lymphnode_auprc', 1),
-        'f': (box('n_sig_genes_by_resolution.csv', 'n_sig_genes'), 'fig2_f_pbmc10k_n_sig_genes', 2),
-        'g': (box('avg_lfc_by_resolution.csv', 'avg_abs_lfc_sig', log=True), 'fig2_g_pbmc10k_avg_lfc', 2),
-        'h': (lambda ax: hf.draw_fpr(ax, heldout), 'fig2_h_pbmc10k_heldout_fpr', 3),
-    }
-    drawn, labels = {}, [method_label(m) for m in raw['method'].unique()]
-    for letter, (draw, stem, row) in plots.items():
-        drawn[letter], seen = panel(draw, stem, row)
-        labels += seen
-    key = key_panel(sorted(set(labels)), 'fig2_key', 1)
-    i = heatmap_panel(metrics, keys, cluster_count, 'fig2_i_pbmc10k_jaccard_heatmaps', 3)
-    assemble([[('a', diagrams['lymphnode'], LETTER), ('b', drawn['b'], 0)],
-              [('c', drawn['c'], 0), ('d', drawn['d'], 0), ('', key, 0)],
-              [('e', diagrams['pbmc10k'], LETTER), ('f', drawn['f'], 0), ('g', drawn['g'], 0)],
-              [('h', drawn['h'], 0), ('i', i, 0)]], 'fig2', gap=GAP)
+    # Abdelfattah: the heatmaps, the calls that change per cluster, and MC3 against MC4
+    g, height = ea.heatmaps(t, COMP, 'fig2', letter='g', shared_xlabel=True, col=HEAT_COL, cbar_labels=CBAR_LABELS,
+                            vmax=HEAT_VMAX)
+    h = ea.call_changes_panel(t['gsea'], height, 'fig2_h_abdelfattah_call_changes', comp=COMP)
+    i = ea.contrast_by_cluster(t, WIDTH - sum(pdf_size(x)[0] for x in (*g, h)) - 0.01, height, 'fig2_i_abdelfattah_contrast',
+                               comp=COMP)
+
+    methods = [(method_color(m), 1.0, method_label(m)) for m in ('ln', 't_test', 'wilcoxon')]
+    rules = [(*ls.MARKER_STYLE[r], ls.MARKER_RULES[r]) for r in mk.RULES]
+    assemble([[('a', images, LETTER), ('b', b, 0), ('c', c, 0), ('', key(methods, ROW_A, 'fig2_key_methods'), 0)],
+              [('d', de, 0), ('f', f, 0), ('', key(rules, ROW_B, 'fig2_key_rules'), 0)],
+              [('g', g[0], 0), *[('', x, 0) for x in g[1:]], ('h', h, 0), ('i', i, 0)]], 'fig2', gap=GAP)

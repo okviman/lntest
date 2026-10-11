@@ -7,23 +7,29 @@ split by median depth. Every gene is null in both. Per replicate, the share of t
 below each of ALPHAS; a calibrated test gives alpha. The groups are built as the two arms build them, with their
 settings (35 capsules removed, their p grids, seed 0), and the tests run as their fpr_test_single runs them (genes
 with no counts in either group dropped; LN on the counts, scanpy's t-test and Wilcoxon on CP10K log1p), only the
-p-values are read before correction. Writes its own CSV, so Fig 1's results are untouched.
+p-values are read before correction. Writes its own CSV, so Fig 1's results are untouched. The figures draw each
+experiment's share against p, the mean and SD over replicates, one panel per alpha, alpha dashed.
 
-    python -m kidney.null_calibration      # from reproducibility/, tens of minutes on all cores
+    python -m kidney.null_calibration              # from reproducibility/, tens of minutes on all cores
+    python -m kidney.null_calibration --plot-only  # redraw from the CSV
 """
 
 import argparse
 from multiprocessing import Pool, cpu_count
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scanpy as sc
 import scipy.sparse as sp
 
+import plot_style
 from baselines import scanpy_sig_test
+from kidney.fpr_plots import SAMPLING, SPLIT
 from kidney.spot_split import create_groups_from_shape_ids
 from lntest import get_LN_lfcs
-from paths import data_dir, require_input, results_dir
+from method_colors import method_color, method_draw_order, method_label
+from paths import data_dir, fig_name, require_input, results_dir
 
 ALPHAS = (0.05, 0.01, 0.001)
 REMOVE = 35          # capsules removed, as both arms are run (README)
@@ -32,6 +38,7 @@ SPLIT_P = np.linspace(0.1, 0.5, 10)       # spot_split's defaults
 DOWNSAMPLE_P = np.linspace(0.1, 1.0, 10)  # umi_null's defaults
 METHODS = {'LN_test': None, 'Scanpy t-test': 't-test', 'Scanpy wilcoxon': 'wilcoxon'}
 CSV = 'null_calibration.csv'
+FIGURES = {'spot splitting': ('split_null_calibration', SPLIT), 'downsampling': ('downsample_null_calibration', SAMPLING)}
 
 _DATA = None
 
@@ -110,15 +117,53 @@ def run(experiment, data, replicate, p_values, n_jobs):
     return rows
 
 
+def draw_calibration(ax, df, experiment, alpha=0.05, zero=None, top=None):
+    """One experiment's share of genes with uncorrected p below alpha against p, the mean and SD over replicates, per
+    method, on the kidney's log axis with a zero row; alpha dashed."""
+    d = df[(df['experiment'] == experiment) & np.isclose(df['alpha'], alpha)]
+    s = d.groupby(['method', 'p'])['share'].agg(['mean', 'std']).reset_index()
+    if zero is None:
+        zero = plot_style.zero_row(s['mean'], s['std'])
+    if top is None:
+        top = float((s['mean'] + s['std']).max())
+    for m in method_draw_order(s['method'].unique()):
+        r = s[s['method'] == m].sort_values('p')
+        plot_style.errorbar_log(ax, r['p'], r['mean'], r['std'], zero, label=method_label(m), color=method_color(m))
+    ax.axhline(alpha, color='0.4', lw=0.8, ls='--', zorder=1)
+    plot_style.log_axis_with_zero(ax, zero, max(top, alpha))
+    ax.set_xlabel(FIGURES[experiment][1])
+    ax.set_ylabel(f'Fraction with p < {alpha:g}')
+
+
+def plot(df, experiment, path):
+    """draw_calibration for each of ALPHAS, side by side, with one key."""
+    fig, axes = plt.subplots(1, len(ALPHAS), figsize=plot_style.figsize(len(ALPHAS)))
+    for ax, alpha in zip(axes, ALPHAS):
+        draw_calibration(ax, df, experiment, alpha)
+    plt.tight_layout()
+    plot_style.legend_outside(fig)
+    fig.savefig(path, dpi=plot_style.RASTER_DPI, bbox_inches='tight')
+    plt.close(fig)
+    print(f'  wrote {path}')
+
+
 def main():
     parser = argparse.ArgumentParser(description="Calibration from uncorrected p-values on the kidney's null experiments")
     parser.add_argument('--n_jobs', type=int, default=cpu_count())
+    parser.add_argument('--plot-only', action='store_true', help='Redraw the figures from the saved CSV')
     args = parser.parse_args()
-    rows = run('spot splitting', spots(), split_replicate, SPLIT_P, args.n_jobs)
-    rows += run('downsampling', capsules(), downsample_replicate, DOWNSAMPLE_P, args.n_jobs)
     out = results_dir(__file__) / CSV
-    pd.DataFrame(rows).to_csv(out, index=False)
-    print(f'wrote {out}')
+    if args.plot_only:
+        df = pd.read_csv(require_input(out, what='the kidney null calibration', source='this script without --plot-only'))
+    else:
+        rows = run('spot splitting', spots(), split_replicate, SPLIT_P, args.n_jobs)
+        rows += run('downsampling', capsules(), downsample_replicate, DOWNSAMPLE_P, args.n_jobs)
+        df = pd.DataFrame(rows)
+        df.to_csv(out, index=False)
+        print(f'wrote {out}')
+    plot_style.use()
+    for experiment, (stem, _) in FIGURES.items():
+        plot(df, experiment, results_dir(__file__) / fig_name(stem))
 
 
 if __name__ == '__main__':

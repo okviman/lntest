@@ -81,3 +81,53 @@ sources:
     bytes: 2783809559
     extract_to: lymphnode/data
     arms: [lymphnode]
+
+  - name: monaco2019-supplementary
+    what: >-
+      Monaco et al. 2019 (Cell Reports 26:1627) supplementary files as Europe PMC serves them (PMC6367568); the
+      immune housekeeping genes of its Table S3 (mmc4.xlsx, sheet "Immune-housekeeping genes", read inside the zip)
+      for clustering/marker_rule.py. The zip's mmc3.xlsx (Table S2) is truncated in this copy and is not used.
+    url: https://www.ebi.ac.uk/europepmc/webservices/rest/PMC6367568/supplementaryFiles
+    dest: data/monaco2019_supplementary.zip
+    sha256: c1b5461cbd795a4c222001e884ee8c1ca59ee9c81ed5f0e93893eee3cb3cc82f
+    bytes: 54695287
+    arms: [clustering]
+  - name: hpa-25.1
+    what: >-
+      Human Protein Atlas release 25.1, proteinatlas.tsv.zip; its RNA blood cell specificity (18 immune cell types)
+      for clustering/marker_rule.py, read inside the zip
+    url: https://v25.proteinatlas.org/download/proteinatlas.tsv.zip
+    dest: data/hpa_25.1_proteinatlas.tsv.zip
+    sha256: ad401f8519ecdee5b67b0ad3bf28175d402d1ea0ad6c542b90fcab2bee39b470
+    bytes: 7460135
+    arms: [clustering]
+  - name: monaco2019-tpm
+    what: >-
+      Monaco et al. 2019 sorted immune-cell bulk RNA-seq (29 populations, 4 donors), GEO GSE107011 processed TPM;
+      the sorted-cell truth for clustering/multires_gaps.py
+    url: https://ftp.ncbi.nlm.nih.gov/geo/series/GSE107nnn/GSE107011/suppl/GSE107011_Processed_data_TPM.txt.gz
+    dest: data/GSE107011_Processed_data_TPM.txt.gz
+    sha256: 8c4abbdd4a118a051e7ef8ef4858568a3e67e60135733b06dab80b430efc1eb9
+    bytes: 15420393
+    arms: [clustering]
+
+  - name: abdelfattah2022-counts
+    what: >-
+      Abdelfattah et al. 2022 (Nat Commun 13:767), glioma scRNA-seq: GEO GSE182109, one 10x
+      matrix per sample, for published/abdelfattah2022.py
+    url: https://ftp.ncbi.nlm.nih.gov/geo/series/GSE182nnn/GSE182109/suppl/GSE182109_RAW.tar
+    dest: data/GSE182109_RAW.tar
+    sha256: a239479d134c3fdba4fd7e5103c725441725e5e79cdde524338e5281384c1b59
+    bytes: 2460129280
+    extract_to: data/GSE182109
+    arms: [published]
+
+  - name: abdelfattah2022-metadata
+    what: >-
+      Abdelfattah et al. 2022, the authors' per-cell metadata with their myeloid subclusters
+      (MC01-MC09), from github.com/parveendabas/GBMatlas at a pinned commit
+    url: https://raw.githubusercontent.com/parveendabas/GBMatlas/f1d0d59076134680e890476cd4710b005a581a65/Meta_Data_GBMatlas.txt
+    dest: data/Meta_Data_GBMatlas.txt
+    sha256: f79f3e4ce9d8e9fd63d08a3c3434058d9788f52cb861db36cccdd45e4806ef76
+    bytes: 35419131
+    arms: [published]

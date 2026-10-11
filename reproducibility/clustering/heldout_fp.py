@@ -10,7 +10,8 @@ figures' default, since its cutoff is the same for every test; BH-adjusted p < 0
 number of genes a test calls, so that its rate on negatives grows with the test's power; and uncorrected p below each
 of ALPHAS. The negatives come from cells no test sees, so they do not depend on any test's statistic. Genes within the
 tolerance can still differ slightly, and a test with the power to see it is counted as wrong, so the rates are upper
-bounds for every method.
+bounds for every method. The figures draw the rate against the variance ratio, its mean and SD over the splits, and
+against the number of clusters, pooled over the splits.
 
     python -m clustering.heldout_fp --config clustering/config.yaml               # from reproducibility/, about a minute
     python -m clustering.heldout_fp --config clustering/config.yaml --plot-only   # redraw from the CSV
@@ -38,6 +39,7 @@ TOLERANCES = (0.05, 0.1, 0.2)   # |log2 fold change| of the means; 0.1 is within
 TOLERANCE = 0.1
 EDGES = (0, 0.5, 1, 1.5, 2, 3, np.inf)   # |log2 variance ratio|
 BINS = ('1–1.4', '1.4–2', '2–2.8', '2.8–4', '4–8', '>8')
+TWOFOLD = BINS[2:]                       # variances differing at least twofold
 SIZES = {'<100 cells': (0, 100), '100–400 cells': (100, 401), '>400 cells': (401, np.inf)}
 METHODS = ('ln', 't_test', 'wilcoxon', 'wilcoxon_untied')
 MAIN = ('ln', 't_test', 'wilcoxon')      # Wilcoxon without tie correction, scanpy's current default, is an ED check
@@ -188,12 +190,76 @@ def shared_range(df, panels, methods):
     return plot_style.zero_row(means, sds), float(np.nanmax(means + sds))
 
 
-def plot_panels(df, panels, titles, methods, path, ylabel=None):
-    """A row of draw_fpr panels on one y range, with one key; ylabel in place of the first panel's own."""
-    zero, top = shared_range(df, panels, methods)
-    fig, axes = plt.subplots(1, len(panels), figsize=plot_style.figsize(len(panels)), sharey=True, squeeze=False)
-    for ax, kw, title in zip(axes[0], panels, titles):
-        draw_fpr(ax, df, methods, zero=zero, top=top, **kw)
+def cluster_counts(df):
+    """Each resolution's number of clusters, fewest first."""
+    return df.groupby('resolution')['cluster'].nunique().sort_values(kind='stable')
+
+
+def by_resolution(df, tolerance=TOLERANCE, size=None, correction=CORRECTION):
+    """Each method's rate of calls on negatives per resolution, total calls over total negatives across clusters, bins
+    and splits, indexed by the resolution's number of clusters; NaN where no cluster of that size has negatives."""
+    d = df[df['tolerance'] == tolerance]
+    counts = cluster_counts(d)
+    if size is not None:
+        lo, hi = SIZES[size]
+        d = d[(d['n_cells'] >= lo) & (d['n_cells'] < hi)]
+    columns = {m: column(m, correction) for m in METHODS}
+    totals = d.groupby('resolution')[['negatives', *columns.values()]].sum().reindex(counts.index)
+    rates = totals[list(columns.values())].div(totals['negatives'].where(totals['negatives'] > 0), axis=0)
+    rates.index = counts.to_numpy()
+    return rates.rename(columns={v: k for k, v in columns.items()})
+
+
+def draw_by_resolution(ax, df, methods=MAIN, tolerance=TOLERANCE, size=None, zero=None, top=None,
+                       correction=CORRECTION):
+    """by_resolution's rates against the number of clusters, one line per method, on draw_fpr's log axis; no bars,
+    since the splits are pooled."""
+    r = by_resolution(df, tolerance, size, correction)[list(methods)]
+    if zero is None:
+        zero = plot_style.zero_row(r.to_numpy().ravel(), np.zeros(r.size))
+    if top is None:
+        top = float(np.nanmax(r.to_numpy()))
+    x = np.arange(len(r))
+    for m in method_draw_order(methods):
+        y = r[m].to_numpy()
+        ax.plot(x, np.where(y == 0, zero, y), marker=plot_style.ERRORBAR['marker'], ms=plot_style.ERRORBAR['ms'],
+                lw=plot_style.ERRORBAR['lw'], label=method_label(m), color=method_color(m))
+    plot_style.log_axis_with_zero(ax, zero, top)
+    ax.set_xticks(x)
+    ax.set_xticklabels(r.index)
+    ax.set_xlabel('Number of clusters')
+    ax.set_ylabel('FPR' if correction == CORRECTION else f'FPR ({correction_title(correction)})')
+
+
+def resolution_range(df, sizes, methods):
+    """One zero row and top for draw_by_resolution panels, one per size (None for all clusters)."""
+    rates = np.concatenate([by_resolution(df, size=s)[list(methods)].to_numpy().ravel() for s in sizes])
+    return plot_style.zero_row(rates, np.zeros_like(rates)), float(np.nanmax(rates))
+
+
+def draw_variance_ratio(ax, df, tolerance=TOLERANCE, **kwargs):
+    """The share of each resolution's negatives whose variances differ at least twofold, against its number of
+    clusters: how exposed the resolution is to the variance differences the rates follow."""
+    d = df[df['tolerance'] == tolerance]
+    counts = cluster_counts(d)
+    totals = (d.assign(twofold=d['negatives'].where(d['bin'].isin(TWOFOLD), 0))
+              .groupby('resolution')[['twofold', 'negatives']].sum().reindex(counts.index))
+    x = np.arange(len(counts))
+    ax.plot(x, totals['twofold'] / totals['negatives'], marker=plot_style.ERRORBAR['marker'],
+            ms=plot_style.ERRORBAR['ms'], lw=plot_style.ERRORBAR['lw'], **{'color': 'black', **kwargs})
+    ax.set_ylim(bottom=0)
+    ax.set_xticks(x)
+    ax.set_xticklabels(counts.to_numpy())
+    ax.set_xlabel('Number of clusters')
+    ax.set_ylabel('Fraction of negatives with\nvariance ratio ≥ 2')
+
+
+def save_row(draws, titles, path, ylabel=None):
+    """A row of panels sharing their y-axis, each drawn by its draw(ax), with one key if they have one; ylabel in place
+    of the first panel's own."""
+    fig, axes = plt.subplots(1, len(draws), figsize=plot_style.figsize(len(draws)), sharey=True, squeeze=False)
+    for ax, draw, title in zip(axes[0], draws, titles):
+        draw(ax)
         if title:
             ax.set_title(title)
     for ax in axes[0][1:]:
@@ -201,10 +267,25 @@ def plot_panels(df, panels, titles, methods, path, ylabel=None):
     if ylabel:
         axes[0][0].set_ylabel(ylabel)
     plt.tight_layout()
-    plot_style.legend_outside(fig)
+    if axes[0][0].get_legend_handles_labels()[0]:
+        plot_style.legend_outside(fig)
     fig.savefig(path, dpi=plot_style.RASTER_DPI, bbox_inches='tight')
     plt.close(fig)
     print(f'  wrote {path}')
+
+
+def plot_panels(df, panels, titles, methods, path, ylabel=None):
+    """A row of draw_fpr panels on one y range, with one key; ylabel in place of the first panel's own."""
+    zero, top = shared_range(df, panels, methods)
+    save_row([lambda ax, kw=kw: draw_fpr(ax, df, methods, zero=zero, top=top, **kw) for kw in panels], titles, path,
+             ylabel)
+
+
+def plot_by_resolution(df, sizes, titles, methods, path):
+    """A row of draw_by_resolution panels, one per size (None for all clusters), on one y range, with one key."""
+    zero, top = resolution_range(df, sizes, methods)
+    save_row([lambda ax, s=s: draw_by_resolution(ax, df, methods, size=s, zero=zero, top=top) for s in sizes], titles,
+             path)
 
 
 def main():
@@ -236,6 +317,13 @@ def main():
                 METHODS, os.path.join(figures_dir, fig_name('heldout_fpr_tolerance')))
     plot_panels(df, [{'correction': c} for c in CORRECTIONS], [correction_title(c) for c in CORRECTIONS],
                 METHODS, os.path.join(figures_dir, fig_name('heldout_fpr_correction')), ylabel='FPR')
+    for methods, suffix in ((MAIN, ''), (METHODS, '_all_methods')):
+        plot_by_resolution(df, [None], [None], methods,
+                           os.path.join(figures_dir, fig_name(f'heldout_fpr_by_resolution{suffix}')))
+        plot_by_resolution(df, list(SIZES), list(SIZES), methods,
+                           os.path.join(figures_dir, fig_name(f'heldout_fpr_by_resolution_and_size{suffix}')))
+    save_row([lambda ax: draw_variance_ratio(ax, df)], [None],
+             os.path.join(figures_dir, fig_name('heldout_variance_ratio_by_resolution')))
 
 
 if __name__ == '__main__':
