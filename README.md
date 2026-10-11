@@ -21,6 +21,13 @@ adata.uns["rank_genes_groups"]["logfoldchanges"]
 adata.uns["rank_genes_groups"]["lfc_se"]
 ```
 
+To select each cluster's markers, we recommend taking the genes LN's $t$-test calls significant and up in the cluster, ranked by the log ratio of their detection rates over its standard error:
+
+```python
+rank_genes_groups_ln(adata, groupby="leiden", layer="norm_counts", corr_method="bonferroni", rankby="markers")
+adata.uns["rank_genes_groups"]["names"]["3"][:20]  # cluster 3's top 20 markers
+```
+
 ## Example
 
 The notebook [PBMC3k](notebooks/pbmc3k.ipynb) showcases LN's $t$-test finding far fewer DEGs than scanpy's $t$-test on the 3k PBMCS data set from 10x Genomics.
