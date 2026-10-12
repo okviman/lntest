@@ -3,7 +3,7 @@
 [![CI](https://github.com/okviman/lntest/actions/workflows/ci.yml/badge.svg)](https://github.com/okviman/lntest/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/ln-ttest.svg)](https://pypi.org/project/ln-ttest/)
 
-Differential expression testing for single-cell transcriptomics with reduced false discoveries.
+Differential expression analysis with LN's $t$-test
 
 ## Installation
 
