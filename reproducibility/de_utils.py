@@ -306,3 +306,37 @@ def run_mast_de(
         results[str(target_cluster)] = df[["names", "logfoldchanges", "scores", "pvals", "pvals_adj"]].copy()
     ro.r("rm(expr_mat, cell_data, mast_result); gc()")
     return results
+
+
+def run_mast_two_groups(X, Y):
+    """MAST through Seurat's FindMarkers on two count matrices, rows the observations: Y against X after NormalizeData
+    (log1p CP10K), with the gene filters off (logfc.threshold = 0, min.pct = 0) so that every gene is tested. Returns
+    FindMarkers' p_val, its p_val_adj (Bonferroni over every gene) and avg_log2FC, in gene order."""
+    if not _HAS_RPY2:
+        raise ImportError("run_mast_two_groups requires rpy2. Install with: pip install rpy2")
+    importr("Seurat")
+    counts = np.vstack([X, Y]).astype(float)
+    genes = [f'g{j}' for j in range(counts.shape[1])]   # no underscores, which Seurat rewrites
+    m = ro.r.matrix(ro.FloatVector(np.asfortranarray(counts.T).ravel(order='F')), nrow=counts.shape[1],
+                    ncol=counts.shape[0])
+    m.rownames = ro.StrVector(genes)
+    m.colnames = ro.StrVector([f'c{i}' for i in range(counts.shape[0])])
+    ro.globalenv["counts_mat"] = m
+    ro.globalenv["groups"] = ro.StrVector(['X'] * len(X) + ['Y'] * len(Y))
+    ro.r("""
+    suppressPackageStartupMessages(library(Seurat))
+    obj <- CreateSeuratObject(counts = as(counts_mat, "dgCMatrix"))
+    obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = 1e4, verbose = FALSE)
+    obj$group <- groups
+    Idents(obj) <- "group"
+    fm <- FindMarkers(obj, ident.1 = "Y", ident.2 = "X", test.use = "MAST", logfc.threshold = 0, min.pct = 0,
+                      verbose = FALSE)
+    fm$names <- rownames(fm)
+    rm(obj, counts_mat); invisible(gc())
+    """)
+    with localconverter(ro.default_converter + pandas2ri.converter):
+        df = ro.conversion.rpy2py(ro.globalenv["fm"])
+    df = df.set_index("names").reindex(genes)
+    ro.r("rm(fm, groups); invisible(gc())")
+    return {"names": np.array(genes), "logfoldchanges": df["avg_log2FC"].values, "pvals": df["p_val"].values,
+            "pvals_adj": df["p_val_adj"].values}

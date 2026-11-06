@@ -1,4 +1,4 @@
-"""Extended Data Fig 6: the Visium HD lymph node in full, assembled from the arm's drawing code.
+"""Supplementary Fig 6: the Visium HD lymph node in full, assembled from the arm's drawing code.
 
 Germinal center B cells (the B-cell follicles) against T cells (the T-cell zone), the T cells thinned. a-c: Fig 2's
 spot version (the T cells' 2 um spots kept with probability p_sub, the B cells' all; lymphnode.depth_imbalance --thin
@@ -10,7 +10,7 @@ x axis tells spots (p_sub) from reads (p_sample). As Fig 1's error bars, the mea
 SD. One method key, in b. Each plot is drawn by its own drawing code from the saved results, at the size it prints at;
 a change to a plot belongs in that code.
 
-    python -m figures.ed6      # from reproducibility/, a few seconds; needs depth_imbalance's and depth_gsea's results
+    python -m figures.suppfig6      # from reproducibility/, a few seconds; needs depth_imbalance's and depth_gsea's results
 """
 
 import matplotlib.pyplot as plt
@@ -57,14 +57,14 @@ if __name__ == '__main__':
     gsea = read(dg.OUTS['reads'] / 'agreement.csv', 'the depth-GSEA agreement (reads)', source.format('depth_gsea', 'reads'))
 
     spots = results['bins']
-    a, b = (panel(markers(spots, cl, 'bins'), title, f'ed6_{letter}_spots_auprc_{stem}',
+    a, b = (panel(markers(spots, cl, 'bins'), title, f'suppfig6_{letter}_spots_auprc_{stem}',
                   legend=dict(handles=di.method_lines(), loc='lower right') if letter == 'b' else None)
             for letter, cl, title, stem in (('a', di.T_ZONE, 'T cells', 't_zone'), ('b', di.B_FOLLICLES, 'B cells', 'b_follicles')))
     c = panel(lambda ax: di.draw_errorbar(ax, di.per_task_false_calls(spots), 'false_calls',
                                           'Calls outside the\nreference markers', di.XLABEL['bins']),
-              'Calls outside the reference', 'ed6_c_spots_false_calls')
-    d = panel(markers(results['reads'], di.T_ZONE, 'reads'), 'T cells', 'ed6_d_reads_auprc_t_zone')
-    e = panel(markers(results['reads'], di.B_FOLLICLES, 'reads'), 'B cells', 'ed6_e_reads_auprc_b_follicles')
+              'Calls outside the reference', 'suppfig6_c_spots_false_calls')
+    d = panel(markers(results['reads'], di.T_ZONE, 'reads'), 'T cells', 'suppfig6_d_reads_auprc_t_zone')
+    e = panel(markers(results['reads'], di.B_FOLLICLES, 'reads'), 'B cells', 'suppfig6_e_reads_auprc_b_follicles')
     f = panel(lambda ax: dg.draw_agreement(ax, gsea, thin='reads', ylabel='NES agreement'), 'Hallmark GSEA',
-              'ed6_f_reads_gsea')
-    assemble([[('a', a, 0), ('b', b, 0), ('c', c, 0)], [('d', d, 0), ('e', e, 0), ('f', f, 0)]], 'ed6', width=WIDTH)
+              'suppfig6_f_reads_gsea')
+    assemble([[('a', a, 0), ('b', b, 0), ('c', c, 0)], [('d', d, 0), ('e', e, 0), ('f', f, 0)]], 'suppfig6', width=WIDTH)

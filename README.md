@@ -28,6 +28,11 @@ rank_genes_groups_ln(adata, groupby="leiden", layer="norm_counts", corr_method="
 adata.uns["rank_genes_groups"]["names"]["3"][:20]  # cluster 3's top 20 markers
 ```
 
+## Reproducing the paper
+
+[`reproducibility/`](reproducibility/README.md) holds the code behind the paper's analyses and figures, with a table
+from each figure to the script that builds it.
+
 ## Example
 
 The notebook [PBMC3k](notebooks/pbmc3k.ipynb) showcases LN's $t$-test finding far fewer DEGs than scanpy's $t$-test on the 3k PBMCS data set from 10x Genomics.

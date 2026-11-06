@@ -12,7 +12,7 @@
 #     celltype_values: ["Naive CD4 T", "CD14 Mono"]
 # which could never run: that file has no cell_type column, and those two
 # strings are the first two keys of clustering/config.yaml's marker dictionary,
-# copied verbatim. See the vault's decision-celltype-groups.
+# copied verbatim.
 
 adata_path: "data/kang_2018.h5ad"
 

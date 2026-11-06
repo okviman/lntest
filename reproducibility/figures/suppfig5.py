@@ -1,11 +1,11 @@
-"""Extended Data Fig 5: kidney UMI downsampling, assembled from the arm's existing figures in Fig 1 f-h's layout.
+"""Supplementary Fig 5: kidney UMI downsampling, assembled from the arm's existing figures in Fig 1 f-h's layout.
 
 a: downsample_null_fpr_log (kidney.fpr_plots), b: the AUPRC (each replicate's average precision, as Fig 1g), c: downsample_degs_100rep_pr_curves,
 with one method key and the p_sample key beside c, as in Fig 1; d: the share of null genes with uncorrected p below 0.05 on the no-DEG downsampling null (kidney.null_calibration.draw_calibration); e: downsample_degs_100rep_tpr_fpr with its key
 (kidney.spot_split_plots). Each is drawn by its own drawing code from the saved results, at the size it prints at;
 a change to a panel belongs in that code.
 
-    python -m figures.ed5      # from reproducibility/, a few seconds; needs kidney's downsampling results
+    python -m figures.suppfig5      # from reproducibility/, a few seconds; needs kidney's downsampling results
 """
 
 import json
@@ -30,9 +30,9 @@ if __name__ == '__main__':
                                    source='python -m kidney.umi_de (see README)'))
     curve_data = json.load(open(require_input(KIDNEY / 'downsample_degs_100rep_pr_curve_data.json', what='its PR curves',
                                               source='python -m kidney.umi_de (see README)')))
-    a, b, c = null_auc_curves(null, df, curve_data, SAMPLING, ('ed5_a_downsample_null_fpr', 'ed5_b_downsample_auprc',
-                                                           'ed5_c_downsample_pr_curves'), width=WIDTH)
-    d = calibration('downsampling', 'UMI downsampling, no DEGs', 'ed5_d_downsample_calibration', WIDTH / 3)
-    e = pair(ssp.draw_tpr_fpr, df, SAMPLING, 'ed5_e_downsample_tpr_fpr', width=WIDTH - WIDTH / 3)
+    a, b, c = null_auc_curves(null, df, curve_data, SAMPLING, ('suppfig5_a_downsample_null_fpr', 'suppfig5_b_downsample_auprc',
+                                                           'suppfig5_c_downsample_pr_curves'), width=WIDTH)
+    d = calibration('downsampling', 'UMI downsampling, no DEGs', 'suppfig5_d_downsample_calibration', WIDTH / 3)
+    e = pair(ssp.draw_tpr_fpr, df, SAMPLING, 'suppfig5_e_downsample_tpr_fpr', width=WIDTH - WIDTH / 3)
     assemble([[('a', a, 0), ('b', b, 0), ('c', c, 0)],
-              [('d', d, 0), ('e', e, 0)]], 'ed5', width=WIDTH)
+              [('d', d, 0), ('e', e, 0)]], 'suppfig5', width=WIDTH)

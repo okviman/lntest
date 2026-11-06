@@ -15,11 +15,11 @@ pathways, their GSEA run as the authors ran it on the Wilcoxon's z-score (scanpy
 cells on one colour range, the sets by short names; h, per cluster, how many of those pathways keep their call (FDR <
 0.05) under LN, lose it, reverse it or gain one; i, MC3 over MC4 in the pathways behind the interpretation the rerun
 contradicts, on one x axis, the Wilcoxon's and LN's NES side by side. The authors' own ranking, the Wilcoxon AUC, is
-Extended Data Fig 10.
+Supplementary Fig 8.
 A method key right of c, a key of the marker rules right of f. Each plot is drawn by its own drawing code from the saved results, at the size it prints at; a change to a
 plot belongs in that code.
 
-Panel a's images are drawn elsewhere and read as a PDF from `Claude outputs/` (fig2-drafts/fig2_diagrams.py).
+Panel a's images are drawn by figures/diagrams/fig2_lymphnode.py and read as the PDF committed beside it.
 
     python -m figures.fig2      # from reproducibility/, a few seconds; needs the lymph node, clustering and published results
 """
@@ -44,7 +44,7 @@ from paths import require_input
 from published import abdelfattah2022 as ab
 
 THIN = 'bins'                      # the lymph node version in the figure; 'reads' for the read-thinning one
-OUTSIDE = Path(__file__).resolve().parents[3] / 'Claude outputs'  # the lymph node's images
+DIAGRAMS = Path(__file__).resolve().parent / 'diagrams'  # the lymph node's images
 ROW_A, ROW_B = 1.42, 2.1           # the lymph node row (its images' height) and the PBMC row
 F_W = 3.05                         # f's width; d and e take the rest of the row
 HEAT_COL, CBAR_LABELS = 0.1, 0.42  # g's heatmap columns and the room for its colour bar's labels, narrowed for i
@@ -129,8 +129,8 @@ def key(entries, height, stem):
 
 if __name__ == '__main__':
     use()
-    images = require_input(OUTSIDE / 'fig2_lymphnode_diagram.pdf', what="the lymph node's images",
-                           source='Claude outputs/fig2-drafts/fig2_diagrams.py')
+    images = require_input(DIAGRAMS / 'fig2_lymphnode_diagram.pdf', what="the lymph node's images",
+                           source='python -m figures.diagrams.fig2_lymphnode')
     umap, clusters = mg.umap_clusters('PBMC10k')
     source = f'python -m lymphnode.{{}} --config lymphnode/config_50rep.yaml --thin {THIN}'
     results = read(di.OUTS[THIN] / 'results.csv', 'the depth-imbalance results', source.format('depth_imbalance'))

@@ -2,9 +2,10 @@
 
 Both groups drawn alike, 2,000 genes of mean 5 and variance 2μ (synthetic_nb.null.draw_nb), seed 0; total cells CELLS, half
 per group. Each test timed from raw counts to Bonferroni-adjusted p-values as synthetic_nb.null runs it: LN's t-test
-(lntest.get_LN_lfcs), the log1p t-test and the Wilcoxon (baselines.scanpy_sig_test); MAST (de_utils.run_mast_de, Y against
-X, as Seurat's FindMarkers runs it) up to MAST_MAX cells. The median wall time of REPEATS runs, one thread for the
-numerical libraries. Times depend on the machine, which is recorded with them; they are not byte-reproducible.
+(lntest.get_LN_lfcs), the log1p t-test and the Wilcoxon (baselines.scanpy_sig_test); MAST (Seurat's FindMarkers, gene
+filters off, Y against X; de_utils.run_mast_two_groups) up to MAST_MAX cells. The median wall time of REPEATS runs, one
+thread for the numerical libraries. Times depend on the machine, which is recorded with them; they are not
+byte-reproducible.
 
 With --sparse, realistic sparse counts instead: gene means log-normal (SPARSE_MEANS), NB with Var = μ + SPARSE_PHI μ², stored
 sparse, and each test as a user runs it on a sparse AnnData of counts: LN by lntest.rank_genes_groups_ln on the counts,
@@ -36,7 +37,7 @@ from synthetic_nb import null
 
 GENES, MU, FANO = 2000, 5, 2
 CELLS = (1_000, 2_000, 5_000, 10_000, 20_000, 50_000, 100_000)
-MAST_MAX = 10_000
+MAST_MAX = 100_000   # every size; a fit at 100,000 sparse cells takes minutes and about 11 GB
 REPEATS = 3
 SPARSE_MEANS = (np.log(0.15), 1.3)   # the log-normal's mean and SD of log gene means
 SPARSE_PHI = 0.5
@@ -49,14 +50,8 @@ def timed(test, X, Y):
     """One run of a test, in seconds."""
     t = time.perf_counter()
     if test == 'MAST':
-        import anndata as ad
-        from de_utils import run_mast_de
-        counts = np.vstack([X, Y]).astype(float)
-        cells = [f'c{i}' for i in range(len(counts))]
-        a = ad.AnnData(X=counts, obs=pd.DataFrame({'group': ['X'] * len(X) + ['Y'] * len(Y)}, index=cells),
-                       var=pd.DataFrame(index=[f'g{j}' for j in range(counts.shape[1])]))
-        a.layers['log1p_norm'] = np.log1p(counts / counts.sum(1, keepdims=True) * 1e4)
-        run_mast_de(a, 'group', 'Y', 'X', cdr=False)
+        from de_utils import run_mast_two_groups
+        run_mast_two_groups(X, Y)
     else:
         null.adjusted_pvalues(X, Y, test)
     return time.perf_counter() - t

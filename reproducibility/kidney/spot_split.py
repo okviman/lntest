@@ -68,8 +68,9 @@ def fpr_test_single(X, Y):
     return results
 
 
-def de_test_single(X, Y, selected_genes, true_signs):
-    """Run DE test on X and Y, return TP, FP, FN, TN counts and rates for all methods."""
+def de_test_single(X, Y, selected_genes, true_signs, methods=("DELN", "t-test", "wilcoxon")):
+    """Run DE test on X and Y, return TP, FP, FN, TN counts and rates for each of methods (MAST too, as Seurat's
+    FindMarkers runs it)."""
     n_genes = X.shape[-1]
 
     idx_X = set(np.arange(n_genes)[X.sum(0) == 0])
@@ -98,14 +99,20 @@ def de_test_single(X, Y, selected_genes, true_signs):
     n_not_selected = n_genes_filtered - n_selected
     results = {}
 
-    for method in ["DELN", "t-test", 'wilcoxon']:
+    for method in methods:
         if method == "DELN":
             method_key = "LN_test"  # Rename DELN to LN_test in output
+        elif method == "MAST":
+            method_key = "MAST"
         else:
             method_key = "Scanpy " + method
         if method == "DELN":
             lfcs, DELN_p_vals = get_DELN_lfcs(Y, X, test='t')
             adj_pvals = smm.multipletests(DELN_p_vals, alpha=0.05, method='bonferroni')[1]
+        elif method == "MAST":
+            from de_utils import run_mast_two_groups
+            res = run_mast_two_groups(X, Y)
+            lfcs, adj_pvals = res['logfoldchanges'], res['pvals_adj']
         else:
             lfcs, adj_pvals = scanpy_sig_test(X, Y, method=method)
             # Convert pandas Series to numpy arrays if needed
@@ -384,7 +391,14 @@ def run_single_iteration_de(args):
 
     # Create groups from shape_ids (does splitting in worker)
     X, Y = create_groups_from_shape_ids(_UMIS, shape_id_to_indices, unique_shape_ids, p, seed=seed)
-    
+
+    # Run the test
+    return de_test_single(*plant_degs(X, Y, q, lfc))
+
+
+def plant_degs(X, Y, q, lfc):
+    """Each gene made a DEG with probability q, its counts multiplied by 2**lfc in a random group (the other if that one
+    has no counts), drawing from numpy's global state after the split; the counts, the DEGs and their signs."""
     # Randomly select genes with probability q
     n_genes = X.shape[1]
     selected_genes = set(np.where(np.random.random(n_genes) < q)[0])
@@ -424,9 +438,8 @@ def run_single_iteration_de(args):
         
         effective_selected_genes.add(gene_idx)
         effective_true_signs[gene_idx] = sign
-    
-    # Run the test
-    return de_test_single(X_modified, Y_modified, effective_selected_genes, effective_true_signs)
+
+    return X_modified, Y_modified, effective_selected_genes, effective_true_signs
 
 
 def run_tests_for_p_fpr(p, umis, shape_id_to_indices, unique_shape_ids, n_reps, n_jobs):

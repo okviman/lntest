@@ -29,7 +29,7 @@ ROW_GAP = 0.1
 PLOT = dict(left=0.6, bottom=0.42, top=0.13, right=0.1)  # margins around a plot's axes
 ROW_H = 1.7      # a row of plots with PLOT's margins
 KEY_W = 0.9      # a method key right of a row's last axes
-PAPER = ('fig1', 'fig2', *(f'ed{k}' for k in range(1, 11)))   # the assembled figures the paper prints
+PAPER = ('fig1', 'fig2', *(f'edfig{k}' for k in range(1, 6)), *(f'suppfig{k}' for k in range(4, 9)))   # the assembled figures the paper prints
 
 
 def use():

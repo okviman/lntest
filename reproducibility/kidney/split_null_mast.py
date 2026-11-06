@@ -2,10 +2,14 @@
 
 Each split is rebuilt from its seed in split_null_per_split.csv by kidney.spot_split.create_groups_from_shape_ids, after
 spot_split's capsule filter (N_REMOVE lowest-count capsules dropped, as the README's run). Genes unexpressed in either
-half are dropped as spot_split.fpr_test_single drops them; MAST runs as Seurat's FindMarkers runs it (de_utils.run_mast_de
-with cdr=False: the hurdle LRT on log1p CP10K, ~ group), Bonferroni; FPR = genes called over genes tested. Written to
+half are dropped as spot_split.fpr_test_single drops them; MAST runs through Seurat's FindMarkers with its gene filters
+off (de_utils.run_mast_two_groups: the hurdle LRT on log1p CP10K, ~ group), Bonferroni; FPR = genes called over genes
+tested. Written to
 split_null_mast_per_split.csv in spot_split's per-split columns, batch by batch; a rerun keeps the splits already there.
-The figure draws Fig 1f's panel for all four tests over the same splits, the other three from spot_split's per-split CSV.
+The uncorrected p-values give the share of genes below each of kidney.null_calibration's ALPHAS, written to
+split_null_mast_calibration.csv in null_calibration's columns, whose replicates are these same splits.
+The figures draw Fig 1f's panel and the calibration for all four tests over the same splits, the other three from
+spot_split's per-split CSV and null_calibration's CSV.
 
     python -m kidney.split_null_mast              # from reproducibility/; about 25 minutes; needs R_HOME; resumes
     python -m kidney.split_null_mast --plot-only  # redraw from the CSVs
@@ -33,7 +37,9 @@ WORKERS = 4      # MAST fits at a time, one thread each
 OUT = results_dir(__file__)
 PER_SPLIT = OUT / 'split_null_per_split.csv'
 CSV = OUT / 'split_null_mast_per_split.csv'
+CALIBRATION = OUT / 'split_null_mast_calibration.csv'
 COLUMNS = ['p', 'method', 'split', 'seed', 'n_genes', 'n_degs', 'fpr']
+CAL_COLUMNS = ['experiment', 'p', 'replicate', 'method', 'n_genes', 'alpha', 'share']   # null_calibration's
 
 
 def capsules(input_file=data_dir(__file__) / 'podocytes_2um.h5ad', n_remove=N_REMOVE):
@@ -53,20 +59,24 @@ def capsules(input_file=data_dir(__file__) / 'podocytes_2um.h5ad', n_remove=N_RE
 
 
 def mast_split(task):
-    """One split's MAST result, as a per-split row."""
-    import anndata as ad
-    from de_utils import run_mast_de
+    """One split's MAST result, as a per-split row, and its uncorrected p-values."""
+    from de_utils import run_mast_two_groups
     p, split, seed, X, Y = task
-    counts = np.vstack([X, Y]).astype(float)
-    a = ad.AnnData(X=counts, obs=pd.DataFrame({'group': ['X'] * len(X) + ['Y'] * len(Y)},
-                                              index=[f'c{i}' for i in range(len(counts))]),
-                   var=pd.DataFrame(index=[f'g{j}' for j in range(counts.shape[1])]))
-    a.layers['log1p_norm'] = np.log1p(counts / counts.sum(1, keepdims=True) * 1e4)
-    padj = run_mast_de(a, 'group', 'Y', 'X', cdr=False)['Y_vs_X']['pvals_adj']
-    padj = np.nan_to_num(np.asarray(padj, dtype=float), nan=1.0)
+    res = run_mast_two_groups(X, Y)
+    padj = np.nan_to_num(np.asarray(res['pvals_adj'], dtype=float), nan=1.0)
     called = int((padj < 0.05).sum())
-    print(f'  p_split {p:.3f}, split {split}: {called} of {counts.shape[1]} genes', flush=True)
-    return dict(zip(COLUMNS, (p, 'MAST', split, seed, counts.shape[1], called, called / counts.shape[1])))
+    n_genes = X.shape[1]
+    print(f'  p_split {p:.3f}, split {split}: {called} of {n_genes} genes', flush=True)
+    row = dict(zip(COLUMNS, (p, 'MAST', split, seed, n_genes, called, called / n_genes)))
+    return row, np.asarray(res['pvals'], dtype=float)
+
+
+def calibration_rows(row, pvals):
+    """One split's share of genes with uncorrected p below each alpha, as null_calibration.shares counts it (a NaN p is
+    never below), in its columns."""
+    from kidney.null_calibration import ALPHAS
+    return [dict(zip(CAL_COLUMNS, ('spot splitting', round(float(row['p']), 4), int(row['split']), 'MAST',
+                                   row['n_genes'], a, float(np.mean(pvals < a))))) for a in ALPHAS]
 
 
 def split_counts(caps, p, seed):
@@ -78,22 +88,37 @@ def split_counts(caps, p, seed):
 
 
 def run(saved):
-    """The splits built here, WORKERS at a time, so that only their counts reach the workers; each batch appended to CSV,
-    and splits already in it kept."""
-    done = pd.read_csv(CSV) if CSV.exists() else pd.DataFrame(columns=COLUMNS)
-    have = set(zip(done['p'], done['split']))
+    """The splits built here, WORKERS at a time, so that only their counts reach the workers; each batch written to CSV
+    and CALIBRATION. A split is done once it is in both; one in CSV alone is fitted again, and its saved row kept if the
+    new fit calls the same number of genes."""
+    done = pd.read_csv(CSV, float_precision="round_trip") if CSV.exists() else pd.DataFrame(columns=COLUMNS)
+    cal = (pd.read_csv(CALIBRATION, float_precision="round_trip") if CALIBRATION.exists()
+           else pd.DataFrame(columns=CAL_COLUMNS))
+    have = set(zip(done['p'].astype(float).round(4), done['split'])) & set(zip(cal['p'], cal['replicate']))
     todo = saved[(saved['method'] == 'LN_test') & (saved['split'] < SPLITS)]
-    tasks = [(r.p, int(r.split), int(r.seed)) for r in todo.itertuples() if (r.p, r.split) not in have]
+    tasks = [(r.p, int(r.split), int(r.seed)) for r in todo.itertuples() if (round(r.p, 4), r.split) not in have]
     caps = capsules() if tasks else None
     with mp.get_context('spawn').Pool(WORKERS) as pool:
         for start in range(0, len(tasks), WORKERS):
-            rows = pool.map(mast_split, [(p, split, seed, *split_counts(caps, p, seed))
-                                         for p, split, seed in tasks[start:start + WORKERS]])
-            done = pd.concat([done, pd.DataFrame(rows, columns=COLUMNS)], ignore_index=True)
-            done.to_csv(CSV, index=False)
+            results = pool.map(mast_split, [(p, split, seed, *split_counts(caps, p, seed))
+                                            for p, split, seed in tasks[start:start + WORKERS]])
+            for row, pvals in results:
+                old = done[np.isclose(done['p'].astype(float), row['p']) & (done['split'] == row['split'])]
+                if len(old) and int(old['n_degs'].iloc[0]) != row['n_degs']:
+                    print(f"  p_split {row['p']:.3f}, split {row['split']}: {row['n_degs']} genes called, "
+                          f"{int(old['n_degs'].iloc[0])} saved; the new row replaces it", flush=True)
+                    done = done.drop(old.index)
+                    old = old.iloc[:0]
+                if not len(old):
+                    done = pd.concat([done, pd.DataFrame([row], columns=COLUMNS)], ignore_index=True)
+                cal = pd.concat([cal, pd.DataFrame(calibration_rows(row, pvals), columns=CAL_COLUMNS)],
+                                ignore_index=True)
+            done.sort_values(['p', 'split'], ignore_index=True).to_csv(CSV, index=False)
+            cal.sort_values(['p', 'replicate', 'alpha'], ignore_index=True).to_csv(CALIBRATION, index=False)
     keep = set(zip(todo['p'], todo['split']))
     done = done[[k in keep for k in zip(done['p'], done['split'])]]
-    return done.sort_values(['p', 'split'], ignore_index=True)
+    return done.sort_values(['p', 'split'], ignore_index=True), cal.sort_values(['p', 'replicate', 'alpha'],
+                                                                                ignore_index=True)
 
 
 def table(saved, mast):
@@ -103,7 +128,15 @@ def table(saved, mast):
     return d.groupby(['p', 'method'], sort=False)['fpr'].agg(fpr_mean='mean', fpr_std=lambda v: np.std(v)).reset_index()
 
 
-def plot(df):
+def calibration_table(calibration, mast_cal):
+    """null_calibration's spot-splitting rows over MAST's splits, with MAST's, for its draw_calibration."""
+    d = calibration[calibration['experiment'] == 'spot splitting']
+    pairs = mast_cal[['p', 'replicate']].drop_duplicates()
+    return pd.concat([d.merge(pairs, on=['p', 'replicate']), mast_cal], ignore_index=True)
+
+
+def plot(df, cal):
+    import kidney.null_calibration as nc
     plot_style.use()
     fig, ax = plt.subplots(figsize=plot_style.PANEL)
     draw_fpr_log(ax, df, SPLIT)
@@ -112,6 +145,7 @@ def plot(df):
     fig.savefig(out, dpi=plot_style.RASTER_DPI, bbox_inches='tight')
     plt.close(fig)
     print(f'  wrote {out}')
+    nc.plot(cal, 'spot splitting', OUT / fig_name('split_null_mast_calibration'))
 
 
 def main():
@@ -122,11 +156,17 @@ def main():
                                       source='python -m kidney.spot_split (see README)'))
     if args.plot_only:
         mast = pd.read_csv(require_input(CSV, what="MAST's spot-splitting FPR", source='this script without --plot-only'))
+        mast_cal = pd.read_csv(require_input(CALIBRATION, what="MAST's spot-splitting calibration",
+                                             source='this script without --plot-only'))
     else:
-        mast = run(saved)
+        mast, mast_cal = run(saved)
         mast.to_csv(CSV, index=False)
-        print(f'  wrote {CSV}')
-    plot(table(saved, mast))
+        mast_cal.to_csv(CALIBRATION, index=False)
+        print(f'  wrote {CSV} and {CALIBRATION}')
+    import kidney.null_calibration as nc
+    calibration = pd.read_csv(require_input(OUT / nc.CSV, what='the kidney null calibration',
+                                            source='python -m kidney.null_calibration'))
+    plot(table(saved, mast), calibration_table(calibration, mast_cal))
 
 
 if __name__ == '__main__':
