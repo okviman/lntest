@@ -4,8 +4,8 @@ Each condition: 1,000 + 1,000 cells, 1,500 genes of mean μ; X's genes all of va
 genes of variance ratio × Var(X) and the rest of Var(X), so the two groups' per-cell detection rates barely differ (when
 every gene changes, as in Fig 1c's null, MAST's detection-rate covariate absorbs the group effect). μ = 5 and 50,
 Var(X) = μ and 4μ, Var(Y)/Var(X) = 1, 2, 4, 8, 16 and 32, seed 1. All four tests on the same draws: LN's t-test, the
-log1p t-test and the Wilcoxon as synthetic_nb.null runs them, MAST as Seurat's FindMarkers runs it (de_utils.run_mast_de
-with cdr=False: the hurdle LRT on log1p CP10K, ~ group); Bonferroni over every gene. The FPR over the shifted genes,
+log1p t-test and the Wilcoxon as synthetic_nb.null runs them, MAST through Seurat's FindMarkers with its gene
+filters off (de_utils.run_mast_two_groups: the hurdle LRT on log1p CP10K, ~ group); Bonferroni over every gene. The FPR over the shifted genes,
 and over the others as a check.
 
     python -m synthetic_nb.null_mast              # from reproducibility/; about 7 minutes; needs R_HOME
@@ -14,13 +14,12 @@ and over the others as a check.
 
 import argparse
 
-import anndata as ad
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
 import plot_style
-from de_utils import run_mast_de
+from de_utils import run_mast_two_groups
 from method_colors import method_color, method_draw_order, method_label
 from paths import fig_name, require_input, results_dir
 from synthetic_nb import null
@@ -37,12 +36,7 @@ STYLES = {1: '-', 4: (0, (3, 2))}   # Var(X) = μ solid, 4μ short dashes, as Fi
 
 def mast_pvals(X, Y):
     """MAST's Bonferroni-adjusted p-values, in gene order."""
-    counts = np.vstack([X, Y]).astype(float)
-    cells = [f'c{i}' for i in range(len(counts))]
-    a = ad.AnnData(X=counts, obs=pd.DataFrame({'group': ['X'] * len(X) + ['Y'] * len(Y)}, index=cells),
-                   var=pd.DataFrame(index=[f'g{j}' for j in range(counts.shape[1])]))
-    a.layers['log1p_norm'] = np.log1p(counts / counts.sum(1, keepdims=True) * 1e4)
-    return np.asarray(run_mast_de(a, 'group', 'Y', 'X', cdr=False)['Y_vs_X']['pvals_adj'], dtype=float)
+    return np.asarray(run_mast_two_groups(X, Y)['pvals_adj'], dtype=float)
 
 
 def condition(mu, fano, ratio):

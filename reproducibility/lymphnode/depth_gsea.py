@@ -5,7 +5,7 @@ grows?
 
 The conditions, cells, filters and tests of lymphnode/depth_imbalance.py, its replicates 0 to REPLICATES - 1 (the same
 draws; the unthinned data once). Each test's score ranking of the B-cell follicles against the
-T-cell zone (all tested genes; LN's score, as decision-ln-gsea-ranking recommends) and the reference's Wald statistic,
+T-cell zone (all tested genes; LN's score) and the reference's Wald statistic,
 oriented B over T (and, alongside, its log2 fold change), go through clustering.concordance.prerank (MSigDB Hallmark
 2020, 1,000 permutations, seed 42), in this process one ranking at a time. Readout per task and method: the Spearman
 correlation between its NES and the reference's. Each task's depth ratio and scores must reproduce depth_imbalance.py's

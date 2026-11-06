@@ -2,7 +2,7 @@
 """LN's marker rule against LN's score and the baselines: are the markers cell-type specific, free of housekeeping
 genes, and confirmed by surface protein?
 
-The rule (vault: decision-ln-markers-detection-part): LN's Bonferroni-significant up calls ranked by the detection score,
+The rule: LN's Bonferroni-significant up calls ranked by the detection score,
 the detection part log2(p1/p0) over its SE (LN's detection terms), ties by LN's score then name. Against it, the practice
 rule (Bonferroni-significant, up, ranked by score) for LN, the log1p t-test and the Wilcoxon. Two settings: the 6 types
 of clustering/replication.py against the other included cells, both datasets; and every Leiden cluster at the five

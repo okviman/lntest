@@ -97,11 +97,13 @@ def null_fpr(df, p_symbol, title, stem, width):
     return save(fig, stem)
 
 
-def calibration(experiment, title, stem, width):
+def calibration(experiment, title, stem, width, df=None):
     """The share of null genes with uncorrected p below CALIBRATION_ALPHA on one of the kidney's no-DEG nulls
-    (kidney.null_calibration), in a slot of the given width, titled; a calibrated test gives the dashed line."""
-    df = pd.read_csv(require_input(results_dir(nc.__file__) / nc.CSV, what='the kidney null calibration',
-                                   source='python -m kidney.null_calibration'))
+    (kidney.null_calibration, or df in its columns), in a slot of the given width, titled; a calibrated test gives the
+    dashed line."""
+    if df is None:
+        df = pd.read_csv(require_input(results_dir(nc.__file__) / nc.CSV, what='the kidney null calibration',
+                                       source='python -m kidney.null_calibration'))
     fig = plt.figure(figsize=(width, ROW_H))
     top = 0.25
     ax = axes_at(fig, PLOT['left'], PLOT['bottom'], width - PLOT['left'] - PLOT['right'], ROW_H - PLOT['bottom'] - top)

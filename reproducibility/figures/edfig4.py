@@ -1,4 +1,4 @@
-"""Extended Data Fig 8: the PBMC clusters' DEGs and their effect sizes, assembled from clustering.effect_sizes' drawing
+"""Extended Data Fig 4: the PBMC clusters' DEGs and their effect sizes, assembled from clustering.effect_sizes' drawing
 code.
 
 Every Leiden cluster at five resolutions against the rest. a, b, PBMC10k and PBMC3k: each test's significant genes
@@ -8,7 +8,7 @@ series at each resolution, every cluster a point, each box under its counterpart
 row. Each plot is drawn by its own drawing code from the saved results, at the size it prints at; a change to a plot
 belongs in that code.
 
-    python -m figures.ed8      # from reproducibility/, seconds; needs clustering.effect_sizes' results
+    python -m figures.edfig4      # from reproducibility/, seconds; needs clustering.effect_sizes' results
 """
 
 import matplotlib.pyplot as plt
@@ -46,10 +46,10 @@ if __name__ == '__main__':
                                dtype={'cluster': str}) for name, csv in es.CSVS.items()}
     degs_y, lfc_y = es.value_range(sizes.values(), 'n_degs'), es.value_range(sizes.values())
     a, b = (panel(lambda ax, n=name: (es.draw_degs(ax, sizes[n], degs_y), ax.set_xlabel(''), ax.set_title(n)), True,
-                  f'ed8_{letter}_{name.lower()}_degs') for letter, name in (('a', 'PBMC10k'), ('b', 'PBMC3k')))
+                  f'edfig4_{letter}_{name.lower()}_degs') for letter, name in (('a', 'PBMC10k'), ('b', 'PBMC3k')))
     c, d = (panel(lambda ax, n=name: es.draw_effect_sizes(ax, sizes[n], lfc_y), False,
-                  f'ed8_{letter}_{name.lower()}_effect_sizes') for letter, name in (('c', 'PBMC10k'), ('d', 'PBMC3k')))
+                  f'edfig4_{letter}_{name.lower()}_effect_sizes') for letter, name in (('c', 'PBMC10k'), ('d', 'PBMC3k')))
     methods = sizes['PBMC10k']['method'].unique()
-    assemble([[('a', a, 0), ('b', b, 0), ('', key(*es.count_key(methods), 'ed8_key_tests', TOP), 0)],
-              [('c', c, 0), ('d', d, 0), ('', key(*es.key(methods, wrap=True), 'ed8_key_effect_sizes', PLOT['top']), 0)]],
-             'ed8', width=WIDTH)
+    assemble([[('a', a, 0), ('b', b, 0), ('', key(*es.count_key(methods), 'edfig4_key_tests', TOP), 0)],
+              [('c', c, 0), ('d', d, 0), ('', key(*es.key(methods, wrap=True), 'edfig4_key_effect_sizes', PLOT['top']), 0)]],
+             'edfig4', width=WIDTH)

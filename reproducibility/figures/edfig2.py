@@ -1,4 +1,4 @@
-"""Extended Data Fig 2: MAST on the synthetic null, and each test's runtime, assembled from the arm's drawing code.
+"""Extended Data Fig 2: comparison with MAST and runtime scaling, assembled from the arm's drawing code.
 
 a, b: at μ = 5 and 50, the FPR at Bonferroni 0.05 of LN's t-test, the log1p t-test, the Wilcoxon and MAST against
 Var(Y)/Var(X), Var(X) = μ (solid) and 4μ (short dashes), over the 10% of genes whose variance differs while the
@@ -6,7 +6,7 @@ rest are unchanged (synthetic_nb.null_mast); c: each test's
 median wall time against the number of cells, 2,000 genes (synthetic_nb.runtime). One key. Each plot is drawn by its own
 drawing code from the saved results, at the size it prints at; a change to a plot belongs in that code.
 
-    python -m figures.ed2      # from reproducibility/, seconds; needs null_mast's and runtime's CSVs
+    python -m figures.edfig2      # from reproducibility/, seconds; needs null_mast's and runtime's CSVs
 """
 
 import matplotlib.pyplot as plt
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     mast = pd.read_csv(require_input(nm.CSV, what="MAST's null FPR", source='python -m synthetic_nb.null_mast'))
     table = mast
     times = pd.read_csv(require_input(rt.CSVS[True], what='the sparse runtimes', source='python -m synthetic_nb.runtime --sparse'))
-    a, b = (panel(lambda ax, mu=mu: nm.draw_fpr(ax, table, mu), rf'Null, $\mu$ = {mu}', f'ed2_{l}_null_mast_mu{mu}')
+    a, b = (panel(lambda ax, mu=mu: nm.draw_fpr(ax, table, mu), rf'Null, $\mu$ = {mu}', f'edfig2_{l}_null_mast_mu{mu}')
             for l, mu in (('a', 5), ('b', 50)))
-    c = panel(lambda ax: rt.draw_runtime(ax, times), 'Runtime', 'ed2_c_runtime')
-    assemble([[('a', a, 0), ('b', b, 0), ('c', c, 0), ('', key('ed2_key'), 0)]], 'ed2', width=WIDTH)
+    c = panel(lambda ax: rt.draw_runtime(ax, times), 'Runtime', 'edfig2_c_runtime')
+    assemble([[('a', a, 0), ('b', b, 0), ('c', c, 0), ('', key('edfig2_key'), 0)]], 'edfig2', width=WIDTH)

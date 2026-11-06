@@ -4,9 +4,8 @@
 during the 2026-09-10 restructure.
 
 **What is known.** Nothing in the repository reads them: a grep for `.npy`
-across every tracked file returns zero hits, and `decision-repo-restructure`
-independently recorded the same thing ("24 MB ... which no script in the tree
-reads"). They are the only tracked files with no reader and no writer.
+across every tracked file returns zero hits. They are the only tracked files
+with no reader and no writer.
 
 **What is guessed, and should not be relied on.** Their per-gene means are
 around 100, which is consistent with `main_rSEQ.tex`'s "Densely Expressed Gene
@@ -15,12 +14,9 @@ with h ~ N(15, 25), phi_X varying over {0.1, 0.2, 1.0}. That section produces
 `figures/NB_experiments/dense_nb_lfcs.png`. The match is by parameter plausibility
 only -- no code links the arrays to that figure, and no commit message does either.
 
-**Why they are here rather than deleted.** Under Pedro's 2026-09-10 criterion a
-file is deleted only if we are certain it did not contribute to a manuscript
+**Why they are here rather than deleted.** A file is deleted only if we are certain it did not contribute to a manuscript
 result, or if it is duplicated code. Neither holds: the parameter match is
 evidence *for* contribution, not against, and there is no duplicate.
 
-**Open question for Oskar.** What produced these, and do they underlie
-`dense_nb_lfcs.png`? If yes they are an input worth a generator; if no they are
-24 MB of dead weight and `decision-data-out-of-head` can drop them without a
-Zenodo deposit. Recorded in `handoff-math-questions` alongside question 5.
+**Open question.** What produced these, and do they underlie `dense_nb_lfcs.png`?
+If yes they are an input worth a generator; if no they are 24 MB of dead weight.

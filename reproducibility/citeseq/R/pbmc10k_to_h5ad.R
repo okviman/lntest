@@ -14,9 +14,8 @@ results_dir <- "../results/"
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 
-# Removed: use_python("/Users/sjun6/opt/anaconda3/envs/nbsr/bin/python"), an
-# absolute path into a co-author's machine. zellkonverter manages its own Python
-# through basilisk, so nothing here needs a interpreter named by hand.
+# zellkonverter manages its own Python through basilisk, so nothing here needs an
+# interpreter named by hand.
 #
 # Also removed an unused `methods` vector naming five Seurat DE tests; this
 # script converts an object and runs no test.

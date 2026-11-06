@@ -5,7 +5,7 @@ so its text prints at the size it was drawn: 7 pt for axis labels, ticks and tit
 b, and plot_style's 6 pt for legends. Every axes is placed in inches, so f, g and h have the same axes.
 The method colours are keyed once, beside h, and named by panel a's headings; c draws all three tests.
 
-Panels a and b are drawn elsewhere and read as PDFs from `Claude outputs/` beside the repositories.
+Panels a and b are drawn by figures/diagrams/fig1_ab.py and read as the PDFs committed beside it.
 Each row's panels are placed left to right and top-aligned, and the rows top to bottom; a row wider
 than the figure stops the script instead of overlapping.
 
@@ -30,7 +30,7 @@ from paths import require_input, results_dir
 from synthetic_nb import null_ratio
 
 KIDNEY = results_dir(fpr_plots.__file__)
-OUTSIDE = Path(__file__).resolve().parents[3] / 'Claude outputs'  # panels a and b
+DIAGRAMS = Path(__file__).resolve().parent / 'diagrams'  # panels a and b
 MUS = (5, 50)
 SEED = 0
 DE_SCALE = 0.9   # d and e's share of their row, so that the figure fits 170 mm
@@ -99,10 +99,10 @@ def plot_row():
 
 if __name__ == '__main__':
     use()
-    a = require_input(OUTSIDE / 'fig1a.pdf', what='Fig 1a, the cluster-marker overview',
-                      source='Claude outputs/fig1a-drafts/fig1_ab.py')
-    b = require_input(OUTSIDE / 'fig1b.pdf', what='Fig 1b, the mechanism schematic',
-                      source='Claude outputs/fig1a-drafts/fig1_ab.py')
+    a = require_input(DIAGRAMS / 'fig1a.pdf', what='Fig 1a, the cluster-marker overview',
+                      source='python -m figures.diagrams.fig1_ab')
+    b = require_input(DIAGRAMS / 'fig1b.pdf', what='Fig 1b, the mechanism schematic',
+                      source='python -m figures.diagrams.fig1_ab')
     b_w, b_h = pdf_size(b)
     c = panel_c((WIDTH - LETTER - b_w, b_h))  # c takes what b leaves of its row
     d, e = panels_de()

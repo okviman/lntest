@@ -4,7 +4,7 @@ a, b: lfc_ci_ln and lfc_ci_log1p (synthetic_nb.lfc_confidence_intervals).
 c, d: degs_metrics_sparse and degs_metrics_dense (synthetic_nb.de_ratio), each heading centred over its axes.
 Each is drawn by its own drawing code, at the size it prints at; a change to a panel belongs in that code.
 
-    python -m figures.ed1      # from reproducibility/, a few seconds; needs synthetic_nb's planted-DEG runs
+    python -m figures.edfig1      # from reproducibility/, a few seconds; needs synthetic_nb's planted-DEG runs
 """
 
 import matplotlib.pyplot as plt
@@ -23,7 +23,7 @@ def lfc_panels():
     sim = lfc_ci.simulate()
     w = WIDTH / 2
     out = []
-    for key, stem in (('LN', 'ed1_a_lfc_ci_ln'), ('log1p', 'ed1_b_lfc_ci_log1p')):
+    for key, stem in (('LN', 'edfig1_a_lfc_ci_ln'), ('log1p', 'edfig1_b_lfc_ci_log1p')):
         fig = plt.figure(figsize=(w, LFC_H))
         ax = axes_at(fig, PLOT['left'], PLOT['bottom'], w - PLOT['left'] - 0.15, LFC_H - PLOT['bottom'] - 0.25)
         lfc_ci.draw(ax, sim, key)
@@ -60,8 +60,8 @@ def metric_row(setting, stem):
 if __name__ == '__main__':
     use()
     a, b = lfc_panels()
-    c = metric_row('sparse', 'ed1_c_degs_sparse')
-    d = metric_row('dense', 'ed1_d_degs_dense')
+    c = metric_row('sparse', 'edfig1_c_degs_sparse')
+    d = metric_row('dense', 'edfig1_d_degs_dense')
     assemble([[('a', a, 0), ('b', b, 0)],
               [('c', c, 0)],
-              [('d', d, 0)]], 'ed1', width=WIDTH)
+              [('d', d, 0)]], 'edfig1', width=WIDTH)

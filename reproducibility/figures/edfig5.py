@@ -1,4 +1,4 @@
-"""Extended Data Fig 9: the Abdelfattah et al. 2022 rerun beyond Fig 2, assembled from published.abdelfattah2022's
+"""Extended Data Fig 5: the Abdelfattah et al. 2022 rerun beyond Fig 2, assembled from published.abdelfattah2022's
 drawing code.
 
 a, the myeloid cells' UMAP coloured by the paper's clusters and by counts per cell; b, each cluster's depth relative to
@@ -8,12 +8,12 @@ the Wilcoxon and LN, as b's bars; e, each test's DEGs against the cluster's numb
 and Spearman correlation; f, the Wilcoxon's DEGs over LN's against the cluster's |log2 depth ratio|, as c
 (published.abdelfattah2022 --calls); g, each cluster's expressed genes against its log2 depth ratio, the Wilcoxon's
 z-score (scanpy's score) and LN's score, on one y range; h, each cluster's Hallmark NES against its log2 depth ratio, every set a point
-over its box, the Wilcoxon's and LN's (MC3 against MC4 is Fig 2i; the authors' AUC is Extended Data Fig 10). The
+over its box, the Wilcoxon's and LN's (MC3 against MC4 is Fig 2i; the authors' AUC is Supplementary Fig 8). The
 same figure with
 every panel and with the Wilcoxon's z or the log1p t-test in place of the AUC is figures.ed_abdelfattah's. Each plot is
 drawn by its own drawing code from the saved results, at the size it prints at; a change to a plot belongs in that code.
 
-    python -m figures.ed9      # from reproducibility/, seconds; needs published/results/
+    python -m figures.edfig5      # from reproducibility/, seconds; needs published/results/
 """
 
 import matplotlib.pyplot as plt
@@ -26,8 +26,8 @@ from figures.layout import ED_WIDTH as WIDTH
 from paths import require_input
 from published import abdelfattah2022 as ab
 
-COMP = 'wilcoxon_z'            # the Wilcoxon as scanpy scores it; the authors' AUC is Extended Data Fig 10
-TAG = 'ed9'
+COMP = 'wilcoxon_z'            # the Wilcoxon as scanpy scores it; the authors' AUC is Supplementary Fig 8
+TAG = 'edfig5'
 ROW, TOP = 2.0, 0.25                # the second row and the room above its axes for a title
 C_W = 1.8                           # c's width; b takes the rest of the first row
 

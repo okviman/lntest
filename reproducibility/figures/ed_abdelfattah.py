@@ -1,4 +1,4 @@
-"""Extended Data, Abdelfattah et al. 2022 rerun: their Fig. 4d pathways under the authors' procedure and under LN,
+"""Unnumbered, Abdelfattah et al. 2022 rerun: their Fig. 4d pathways under the authors' procedure and under LN,
 assembled from published.abdelfattah2022's drawing code; and the same figure with the Wilcoxon's z, and with the log1p
 t-test, in place of the authors' AUC ranking (ed_abdelfattah_wilcoxon_z.pdf, ed_abdelfattah_log1p.pdf).
 

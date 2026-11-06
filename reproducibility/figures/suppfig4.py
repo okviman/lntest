@@ -1,11 +1,11 @@
-"""Extended Data Fig 3: the kidney design, assembled from the arm's existing figures.
+"""Supplementary Fig 4: the kidney design, assembled from the arm's existing figures.
 
 a, b: capsule_qc's two panels (kidney.capsule_qc): the capsule sizes split at the median, and the DEGs each
 method calls at full depth as the smallest capsules are removed, with its method key.
 Each is drawn by its own drawing code from the saved results, at the size it prints at; a change to a panel
 belongs in that code.
 
-    python -m figures.ed3      # from reproducibility/, a few seconds; needs kidney's results and data
+    python -m figures.suppfig4      # from reproducibility/, a few seconds; needs kidney's results and data
 """
 
 import matplotlib.pyplot as plt
@@ -29,16 +29,16 @@ def capsule_panels():
 
     fig = plt.figure(figsize=(SLOT, ROW_H))
     capsule_qc.draw_sizes(axes_at(fig, PLOT['left'], PLOT['bottom'], aw, ah), umis)
-    a = save(fig, 'ed3_a_capsule_sizes')
+    a = save(fig, 'suppfig4_a_capsule_sizes')
 
     fig = plt.figure(figsize=(SLOT + KEY_W, ROW_H))
     ax = axes_at(fig, PLOT['left'], PLOT['bottom'], aw, ah)
     capsule_qc.draw_scan(ax, scan)
     plot_style.legend_outside(fig, *ax.get_legend_handles_labels())
-    return a, save(fig, 'ed3_b_removal_scan')
+    return a, save(fig, 'suppfig4_b_removal_scan')
 
 
 if __name__ == '__main__':
     use()
     a, b = capsule_panels()
-    assemble([[('a', a, 0), ('b', b, 0)]], 'ed3', width=WIDTH)
+    assemble([[('a', a, 0), ('b', b, 0)]], 'suppfig4', width=WIDTH)

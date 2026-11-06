@@ -1,4 +1,4 @@
-"""Extended Data Fig 7: the PBMC multi-resolution clustering beyond Fig 2, assembled from clustering.multires_depth's,
+"""Supplementary Fig 7: the PBMC multi-resolution clustering beyond Fig 2, assembled from clustering.multires_depth's,
 clustering.multires_gaps' and clustering.marker_rule's drawing code.
 
 Every Leiden cluster at five resolutions against the rest. a, PBMC3k: the variance ratio to the rest at equal mean, a
@@ -8,11 +8,11 @@ over the cluster's expressed genes against its log2 depth ratio, with its least-
 the share of each rule's top 20 that are Monaco et al. 2019's immune housekeeping genes, as Fig 2f for PBMC10k; f, g,
 PBMC10k and PBMC3k: the share of the top 20 that the Human Protein Atlas (25.1) calls enriched for the cluster's
 majority type; e-g the mean over each resolution's clusters with bars of one standard error. The clusters' DEGs and their
-effect sizes are Extended Data Fig 8. The method key beside d, the key of the marker rules beside g. Each plot is drawn
+effect sizes are Extended Data Fig 4. The method key beside d, the key of the marker rules beside g. Each plot is drawn
 by its own drawing code from the saved results, at the size it prints at; a change to a plot belongs in that code.
 
-    python -m figures.ed7      # from reproducibility/, seconds; needs multires_depth's, multires_gaps' and marker_rule's results
-    python -m figures.ed7 --pbmc10k-only   # the version without PBMC3k, ed7_pbmc10k.pdf: PBMC10k's median score
+    python -m figures.suppfig7      # from reproducibility/, seconds; needs multires_depth's, multires_gaps' and marker_rule's results
+    python -m figures.suppfig7 --pbmc10k-only   # the version without PBMC3k, suppfig7_pbmc10k.pdf: PBMC10k's median score
                                            # against depth, variance ratio against |log2 depth ratio|, HPA share,
                                            # and the key
 """
@@ -75,8 +75,8 @@ RULES = [(*ls.MARKER_STYLE[r], ls.MARKER_RULES[r]) for r in mk.RULES]
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Extended Data Fig 7')
-    parser.add_argument('--pbmc10k-only', action='store_true', help='Without PBMC3k: ed7_pbmc10k.pdf')
+    parser = argparse.ArgumentParser(description='Supplementary Fig 7')
+    parser.add_argument('--pbmc10k-only', action='store_true', help='Without PBMC3k: suppfig7_pbmc10k.pdf')
     only = parser.parse_args().pbmc10k_only
     use()
     comps = read(md.OUT / 'comparisons.csv', 'the multires_depth comparisons', 'python -m clustering.multires_depth',
@@ -87,7 +87,7 @@ if __name__ == '__main__':
 
     q = (WIDTH - KEY_W) / 3
     if only:
-        tag = 'ed7_pbmc10k'
+        tag = 'suppfig7_pbmc10k'
         a = panel(lambda ax: md.draw_depth(ax, comps, 'PBMC10k'), 'PBMC10k', f'{tag}_a_depth', q, 0, left=0.55)
         b = panel(lambda ax: mg.draw_gap_vs_depth(ax, gaps, names=['PBMC10k']), 'PBMC10k', f'{tag}_b_gap_vs_depth', q, 0,
                   left=0.62, legend=dict(loc='upper left', handletextpad=0.2))
@@ -96,14 +96,14 @@ if __name__ == '__main__':
         raise SystemExit
     a_w, b_w = 1.45, 1.7   # b wide enough for its title and legend; c and d share the rest of the row
     cd = (WIDTH - KEY_W - a_w - b_w - 0.02) / 2
-    a = panel(lambda ax: mg.draw_gaps(ax, gaps, 'PBMC3k', 'gap_equal_mean'), 'PBMC3k', 'ed7_a_pbmc3k_gap', a_w, 0, left=0.5)
-    b = panel(lambda ax: mg.draw_gap_vs_depth(ax, gaps), 'PBMC10k and PBMC3k', 'ed7_b_gap_vs_depth', b_w, 0, left=0.62,
+    a = panel(lambda ax: mg.draw_gaps(ax, gaps, 'PBMC3k', 'gap_equal_mean'), 'PBMC3k', 'suppfig7_a_pbmc3k_gap', a_w, 0, left=0.5)
+    b = panel(lambda ax: mg.draw_gap_vs_depth(ax, gaps), 'PBMC10k and PBMC3k', 'suppfig7_b_gap_vs_depth', b_w, 0, left=0.62,
               legend=dict(loc='upper left', handletextpad=0.2))
-    c, d = (panel(lambda ax, n=name: md.draw_depth(ax, comps, n), name, f'ed7_{letter}_{name.lower()}_depth', cd, 0,
+    c, d = (panel(lambda ax, n=name: md.draw_depth(ax, comps, n), name, f'suppfig7_{letter}_{name.lower()}_depth', cd, 0,
                   left=0.55) for letter, name in (('c', 'PBMC10k'), ('d', 'PBMC3k')))
     r = (WIDTH - KEY_W) / 3
     e, f, g = (panel(lambda ax, m=metric, n=name: mk.draw_by_resolution(ax, per, n, m), name,
-                     f'ed7_{letter}_{name.lower()}_{metric}', r, 1, left=0.62)
+                     f'suppfig7_{letter}_{name.lower()}_{metric}', r, 1, left=0.62)
                for letter, metric, name in (('e', 'housekeeping', 'PBMC3k'), ('f', 'hpa', 'PBMC10k'), ('g', 'hpa', 'PBMC3k')))
-    assemble([[('a', a, 0), ('b', b, 0), ('c', c, 0), ('d', d, 0), ('', key(METHODS, 0, 'ed7_key_methods'), 0)],
-              [('e', e, 0), ('f', f, 0), ('g', g, 0), ('', key(RULES, 1, 'ed7_key_rules'), 0)]], 'ed7', width=WIDTH)
+    assemble([[('a', a, 0), ('b', b, 0), ('c', c, 0), ('d', d, 0), ('', key(METHODS, 0, 'suppfig7_key_methods'), 0)],
+              [('e', e, 0), ('f', f, 0), ('g', g, 0), ('', key(RULES, 1, 'suppfig7_key_rules'), 0)]], 'suppfig7', width=WIDTH)

@@ -5,8 +5,8 @@
 # Scratch from earlier verification sessions, not arm results.
 output/
 
-# Experiment inputs, fetched or derived rather than committed. decision-data-out-of-head
-# has fetch_data.py rebuild this from data_sources.yaml.
+# Experiment inputs, fetched or derived rather than committed: fetch_data.py rebuilds
+# them from data_sources.yaml.
 data/
 */data/
 !*/legacy/data/

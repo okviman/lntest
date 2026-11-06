@@ -20,12 +20,6 @@
 # Scope: 22 figures, 68 metrics CSVs, 2 DE-annotated h5ads (92 files).
 # clustering_results.zip is deliberately excluded: zip archives embed mtimes,
 # so its hash is not reproducible from a rerun and would be a false negative.
-#
-# NOT RECORDED HERE: which 7 of the 22 figures are sn-article.tex Fig 3b-f.
-# roadmap-nature-submission.md records the 2026-09-07 audit finding that 7 are
-# byte-identical to the manuscript's panels, but no .tex exists in any of the
-# three repositories, so the subset cannot be identified locally and is not
-# guessed. Mark them here once the Overleaf project is joined.
 91a12e1af9b67edfc4b61c2ca3459b431aa59616c4404361a2fb969bcb9d6c01  figures/avg_jaccard_allsig_by_resolution.png
 d959c458879623ef9bffe65fae575f05e0d9aa077213e3ecdecd56211924bbe3  figures/avg_jaccard_top20_by_resolution.png
 a6f35d06e3b14ff25f427c51131b02c424b712aa29fdb0b3cc7acd540cf9fe09  figures/avg_lfc_by_resolution.png

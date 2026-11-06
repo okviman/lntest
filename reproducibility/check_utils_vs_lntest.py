@@ -90,7 +90,7 @@ STAYS_ON_FROZEN = (
 # --------------------------------------------------------------------------
 
 MEASURABLE = "measurable"
-# These two strings are quoted verbatim in the vault; do not reword them.
+# These two strings are quoted verbatim in the project's notes; do not reword them.
 NOT_APPLICABLE = "not applicable"
 COVERED_BY_ARGUMENT = "covered by argument, not measured"
 
@@ -436,8 +436,7 @@ def check_api_mismatches(lntest):
 
     # (2) The return flags are mutually exclusive. Until 2026-09-10 lntest
     #     silently dropped the statistic when both were set, and this assertion
-    #     pinned that defect while the vault recorded that a guard
-    #     was owed. The guard now exists, so the assertion checks it fires --
+    #     pinned that defect. The guard now exists, so the assertion checks it fires --
     #     which is why this harness failed loudly the moment the API changed
     #     underneath it, rather than passing on a stale premise.
     try:

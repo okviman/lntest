@@ -1,4 +1,4 @@
-"""Planted effects in PBMC10k's memory CD4 T cells, unnumbered (Extended Data Fig 8 until 2026-10-08) (the 10x 5' PBMC 10k CITE-seq run, the cells
+"""Planted effects in PBMC10k's memory CD4 T cells, unnumbered (the 10x 5' PBMC 10k CITE-seq run, the cells
 selected by surface protein, CD3+ CD4+ CD45RA-, the effects planted in their RNA), assembled from the citeseq arm's
 drawing code.
 
