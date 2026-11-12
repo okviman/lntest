@@ -68,17 +68,19 @@ def group_moments(x, own):
 def ln_parts(x, own):
     """LN's LFC as detection part plus level part, and its SE^2 as detection and level terms of each group, from the
     positive values of the CP10K matrix x; a group where no cell detects the gene takes LN's fallback (one detecting
-    cell, mean 1, level term 1)."""
+    cell, mean 1, level term 0), and a gene neither group detects has both parts 0, as LN's LFC is."""
     parts = {}
     for side, (n, a, s, ss) in zip(('own', 'rest'), group_moments(x, own)):
         zero = a == 0
         a_hat = np.where(zero, 1.0, a)
         m = np.where(zero, 1.0, s / np.maximum(a, 1))
-        var = np.where(zero, 0.0, np.maximum(ss / np.maximum(a, 1) - m ** 2, 0))
+        var = np.where(a > 1, np.maximum(ss - a * m ** 2, 0) / np.maximum(a - 1, 1), 0.0)
         parts[side] = dict(det=np.log2(a_hat / n), lvl=np.log2(m), se_det=(1 / a_hat - 1 / n) / LN2,
-                           se_lvl=np.where(zero, 1.0, np.log(1 + var / (a_hat * m ** 2))) / LN2, detecting=a)
+                           se_lvl=np.log(1 + var / (a_hat * m ** 2)) / LN2, detecting=a)
     o, r = parts['own'], parts['rest']
-    return pd.DataFrame({'det': o['det'] - r['det'], 'lvl': o['lvl'] - r['lvl'], 'se2_det_own': o['se_det'],
+    tested = (o['detecting'] > 0) | (r['detecting'] > 0)
+    return pd.DataFrame({'det': np.where(tested, o['det'] - r['det'], 0.0),
+                         'lvl': np.where(tested, o['lvl'] - r['lvl'], 0.0), 'se2_det_own': o['se_det'],
                          'se2_lvl_own': o['se_lvl'], 'se2_det_rest': r['se_det'], 'se2_lvl_rest': r['se_lvl'],
                          'detecting_own': o['detecting'], 'detecting_rest': r['detecting']})
 

@@ -780,16 +780,11 @@ synthetic_nb/results/de_metrics_mu10_nobatch.csv
 `git status` shows them; `git checkout` restores them. Under BH with the untied Wilcoxon, `CITE_seq_metrics.csv` came
 back byte-identical to the June file, which was BH for all three methods; under the current defaults it differs.
 
-## The equivalence harness
+## `utils_frozen.py`
 
-`check_utils_vs_lntest.py` compares the frozen RECOMB-era estimator in `utils_frozen.py` against the published `lntest` package, arm by arm.
-
-```bash
-python -m check_utils_vs_lntest --arm all
-```
-
-It exists because the arms were migrated onto `lntest` one at a time and something had to prove no headline number moved.
-`utils_frozen.py` is a frozen copy, kept for that comparison and for the two `theory/` scripts — do not build on it.
+A frozen copy of the RECOMB-era estimator, kept for the two `theory/` scripts — do not build on it.
+It divides the variance of the positive values by `n₊` and gives a group with no positive value a level term of 1.
+`lntest` 0.3.0 divides by `n₊ − 1` and gives that group a level term of 0, as the Supplement does, so the two no longer agree.
 
 ## Known gaps
 
