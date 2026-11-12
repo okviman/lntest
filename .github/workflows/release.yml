@@ -4,9 +4,7 @@ name: release
 #
 #     git tag v0.1.0 && git push origin v0.1.0
 #
-# Uses PyPI Trusted Publishing (OIDC), so there is no API token in this
-# repository's secrets. That needs a one-time setup on PyPI -- see
-# .github/workflows/README.md.
+# Uses PyPI Trusted Publishing (OIDC), so the repository holds no API token.
 
 on:
   push:
@@ -30,11 +28,7 @@ jobs:
       - name: Install build tooling
         run: python -m pip install --upgrade pip build twine
 
-      # setuptools reuses build/lib if it is present, so a tree with stale
-      # artifacts ships modules that no longer exist in src/. That actually
-      # happened on 2026-09-10: a wheel built after renaming ln_test.py and
-      # scanpy_wrapper.py contained the old names alongside the new ones,
-      # leaving `lntest.ln_test` importable and masking the rename.
+      # setuptools reuses build/lib if present, which can ship modules no longer in src/.
       - name: Remove stale build artifacts
         run: rm -rf build dist src/*.egg-info
 
@@ -44,9 +38,7 @@ jobs:
       - name: Check distribution metadata
         run: twine check --strict dist/*
 
-      # The tag is the release's only statement of what version this is, and
-      # pyproject is the only statement the artifact carries. If they disagree,
-      # the wrong number goes to PyPI permanently.
+      # A PyPI version is permanent, so the tag and pyproject's version must agree.
       - name: Tag must match the packaged version
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -55,8 +47,7 @@ jobs:
           echo "tag=$tag  pyproject=$pkg"
           [ "$tag" = "$pkg" ] || { echo "::error::tag v$tag does not match pyproject version $pkg"; exit 1; }
 
-      # Guards the stale-build failure above, and anything else that would put
-      # unintended files in the wheel.
+      # The wheel holds the package modules and nothing else.
       - name: Wheel contains exactly the package modules
         run: |
           python - <<'PY'
@@ -78,7 +69,6 @@ jobs:
           path: dist/
 
   ci:
-    # The same tests CI runs on every push, reused rather than restated.
     name: tests and floor check
     uses: ./.github/workflows/ci.yml
 

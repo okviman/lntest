@@ -1,18 +1,17 @@
-"""Fig 1: panels c-h drawn at the size they print at, and the whole figure assembled from them and a, b.
+"""Fig 1: panels c-h drawn at their printed size, with the figure assembled from them and panels a and b.
 
-The figure is 183 mm (7.2 in) wide, Nature's double column. Every panel is placed at 100%, never scaled,
-so its text prints at the size it was drawn: 7 pt for axis labels, ticks and titles, as in panels a and
-b, and plot_style's 6 pt for legends. Every axes is placed in inches, so f, g and h have the same axes.
-The method colours are keyed once, beside h, and named by panel a's headings; c draws all three tests.
+The figure is 183 mm (7.2 in) wide, a Nature double column. Every panel is placed at 100%, so its text prints at the
+size it was drawn: 7 pt for axis labels, ticks and titles as in panels a and b, 6 pt for legends. Axes are placed in
+inches, so panels f, g and h have the same axes. The method colours are keyed once, beside h, with the names of the
+headings of panel a. All three tests are drawn in panel c.
 
-Panels a and b are drawn by figures/diagrams/fig1_ab.py and read as the PDFs committed beside it.
-Each row's panels are placed left to right and top-aligned, and the rows top to bottom; a row wider
-than the figure stops the script instead of overlapping.
+Panels a and b are the PDFs that figures/diagrams/fig1_ab.py draws, committed beside it. The panels of each row are
+placed left to right and top-aligned. A row wider than the figure stops the script.
 
-    python -m figures.fig1      # from reproducibility/, a few seconds; needs the arms' results
+Input: synthetic_nb/results (the null_ratio sweeps), kidney/data (the capsule figures) and kidney/results (the
+spot-splitting runs). Output: figures/results/panels/fig1_*.pdf and figures/results/paper/fig1.pdf.
 
-Reads synthetic_nb/results (null_ratio's sweeps), kidney/data (the capsule figures) and
-kidney/results (the spot-splitting runs), and writes figures/results/panels/fig1_*.pdf and figures/results/paper/fig1.pdf.
+    python -m figures.fig1      # from reproducibility/, a few seconds
 """
 
 import json

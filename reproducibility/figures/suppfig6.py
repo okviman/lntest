@@ -1,16 +1,16 @@
-"""Supplementary Fig 6: the Visium HD lymph node in full, assembled from the arm's drawing code.
+"""Supplementary Fig 6: the Visium HD lymph node in full, assembled from the drawing code of the lymph node experiments.
 
-Germinal center B cells (the B-cell follicles) against T cells (the T-cell zone), the T cells thinned. a-c: Fig 2's
-spot version (the T cells' 2 um spots kept with probability p_sub, the B cells' all; lymphnode.depth_imbalance --thin
-bins), each method's AUPRC of the T cells' (a) and of the B cells' (b) pseudo-bulk markers and the calls outside the
-reference markers (c), 20 replicates per p_sub. d-f: the read version (each T-cell read kept with probability p_sample;
---thin reads), the AUPRC of each cell type's markers (20 replicates) and the Spearman correlation of each method's
-Hallmark NES with the pseudo-bulk reference's (lymphnode.depth_gsea, 10 replicates). Titles name the cell type only; the
-x axis tells spots (p_sub) from reads (p_sample). As Fig 1's error bars, the mean over the replicates with bars of one
-SD. One method key, in b. Each plot is drawn by its own drawing code from the saved results, at the size it prints at;
-a change to a plot belongs in that code.
+Germinal center B cells (the B-cell follicles) against T cells (the T-cell zone), with the T cells thinned.
+a-c: the spot version of Fig 2, with the 2 um spots of the T cells kept with probability p_sub and every spot of the
+B cells kept (lymphnode.depth_imbalance --thin bins). The AUPRC of each method for the pseudo-bulk markers of the
+T cells (a) and of the B cells (b). The calls outside the reference markers (c). 20 replicates per p_sub.
+d-f: the read version, with each T-cell read kept with probability p_sample (--thin reads). The AUPRC for the markers
+of each cell type over 20 replicates (d, e). The Spearman correlation between the Hallmark NES of each method and of
+the pseudo-bulk reference over 10 replicates (f, lymphnode.depth_gsea).
+Titles name the cell type. The x axis distinguishes spots (p_sub) from reads (p_sample). Error bars show the mean over
+the replicates with bars of one SD, as in Fig 1. One method key, in b.
 
-    python -m figures.suppfig6      # from reproducibility/, a few seconds; needs depth_imbalance's and depth_gsea's results
+    python -m figures.suppfig6      # from reproducibility/, a few seconds; needs the results of depth_imbalance and depth_gsea
 """
 
 import matplotlib.pyplot as plt

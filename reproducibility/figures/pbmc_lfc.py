@@ -1,16 +1,17 @@
-"""PBMC figure, standalone, for choosing what enters Fig 2: LN's fold change and its SE on PBMC3k and PBMC10k, assembled
-from clustering.lfc_se's drawing code, with Fig 2's subcluster panels from clustering.subcluster_recursive and
-clustering.subcluster_gsea.
+"""LN's fold change and its SE on PBMC3k and PBMC10k, a figure outside the paper, assembled from the drawing code of
+clustering.lfc_se, clustering.subcluster_recursive and clustering.subcluster_gsea.
 
-a, CD14 Mono against the rest in PBMC3k: for the genes with the largest and the smallest LN LFC at each level of
-detection, LN's LFC with its 95% interval and scanpy's LFC; b, LN's LFC in PBMC3k against PBMC10k for CD14 Mono, the
-third of genes with the smallest SE and the third with the largest; c, each effect's correlation between the datasets on
-the genes all three methods call up in both; d, six markers' LFC split into the detection part and the level part, in
-both datasets; e, LN's top 10 markers in PBMC3k by its score and by its detection score; f, each PBMC10k subcluster's
-mean statistic against its depth term; g, the share of Hallmark calls surviving depth matching. Each plot is drawn by
-its own drawing code from the saved results; a change to a plot belongs in that code.
+a, CD14 Mono against the rest in PBMC3k: LN's LFC with its 95% interval and scanpy's LFC, for the genes with the largest
+and the smallest LN LFC at each level of detection.
+b, LN's LFC for CD14 Mono in PBMC3k against PBMC10k, for the third of genes with the smallest SE and the third with the
+largest.
+c, the correlation of each effect between the data sets, on the genes that all three methods call up in both.
+d, the LFC of six markers split into the detection part and the level part, in both data sets.
+e, LN's top 10 markers in PBMC3k by its score and by its detection score.
+f, the mean statistic of each PBMC10k subcluster against its depth term.
+g, the share of Hallmark calls that survive depth matching.
 
-    python -m figures.pbmc_lfc      # from reproducibility/, seconds; needs clustering's lfc_se, subclustering results
+    python -m figures.pbmc_lfc      # from reproducibility/, seconds; needs the results of clustering.lfc_se and the subclustering
 """
 
 import matplotlib.pyplot as plt

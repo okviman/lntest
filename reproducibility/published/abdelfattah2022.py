@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
-"""Abdelfattah et al. 2022 (Nat Commun 13:767), glioma myeloid cells: their Fig. 4d pathways under the authors'
-procedure and under LN, with each cluster's depth.
+"""Abdelfattah et al. 2022 (Nat Commun 13:767), glioma myeloid cells: the Fig. 4d pathways of the original study under its
+procedure and under LN, with the depth of each cluster.
 
-The authors subclustered 83,479 myeloid cells into MC01-MC09, ranked every gene of each cluster against the other myeloid
-cells by presto's Wilcoxon AUC and ran fgsea on msigdbr's Hallmark sets (their R/Figure4.R). Here: their cells and labels
-(data_sources.yaml), the genes both of the study's 10x references share, detected in at least MIN_CELLS cells; each
-cluster against the rest ranked by the AUC (as presto computes it, on log1p CP10K, uncentred as they ranked it), by LN's
-score and by the log1p t-test's score; their fgsea call on each ranking (published/R/abdelfattah2022_fgsea.R).
-Readouts per cluster and method: agreement with the signs of the published heatmap (read from the
-figure); against the cluster's depth ratio, the share of its expressed genes ranked up (detected in at least EXPRESSED
-of the cluster's or the rest's cells) and the share of the 50 sets with positive NES; the Fig. 4d cells where the
-authors' procedure and LN differ in sign with at least one called; and, for MC03, detection and mean level of the
-TNF-alpha via NF-kB genes. The myeloid cells' UMAP, by cluster and by depth, is drawn from
-published/R/abdelfattah2022_umap.R's output (Seurat and harmony, as the paper describes its embedding; the authors' own
-myeloid embedding is not public).
+The original study subclustered 83,479 myeloid cells into MC01-MC09. It ranked every gene of each cluster against the
+other myeloid cells by presto's Wilcoxon AUC and ran fgsea on msigdbr's Hallmark sets (their R/Figure4.R).
+Here the cells and labels of the study (data_sources.yaml) are used, over the genes shared by both of its 10x
+references and detected in at least MIN_CELLS cells. Each cluster is tested against the rest and ranked by the AUC (as
+presto computes it, on log1p CP10K, uncentred as in the original study), by LN's score and by the score of the log1p
+t-test. fgsea runs on each ranking as in the original study (published/R/abdelfattah2022_fgsea.R).
+Readouts per cluster and method: the agreement with the signs of the published heatmap, read from the figure. Against
+the depth ratio of the cluster, the share of its expressed genes ranked up (detected in at least EXPRESSED of the cells
+of the cluster or of the rest) and the share of the 50 sets with positive NES. The Fig. 4d cells where the procedure
+of the original study and LN differ in sign with at least one called. For MC03, the detection and mean level of the
+TNF-alpha via NF-kB genes.
+The UMAP of the myeloid cells, by cluster and by depth, is drawn from the output of published/R/abdelfattah2022_umap.R
+(Seurat and harmony, as the original study describes its embedding, which is not public).
 
     python -m fetch_data --arm published               # from reproducibility/, 2.5 GB
     python -m published.abdelfattah2022 --rankings     # 1, the rankings and per-cluster tables; a few minutes
     Rscript published/R/abdelfattah2022_fgsea.R        # 2, fgsea on every ranking; a minute
     Rscript published/R/abdelfattah2022_umap.R         # 3, the UMAP; several minutes
     python -m published.abdelfattah2022                # 4, the readouts and plots; seconds
-    python -m published.abdelfattah2022 --variance     # each cluster's variance ratio at equal mean (variance.csv), as
-                                                       # Fig 2e's (clustering.multires_gaps); a minute or two
-    python -m published.abdelfattah2022 --claims       # the paper's Fig. 4d claims under the authors' procedure, the
-                                                       # Wilcoxon z and LN (claims.csv); seconds
-    python -m published.abdelfattah2022 --calls        # each test's Bonferroni calls per cluster and the share up
-                                                       # (calls.csv) and their plot; a few minutes (--plot-only: redraw)
+    python -m published.abdelfattah2022 --variance     # the variance ratio of each cluster at equal mean (variance.csv),
+                                                       # as in Fig 2e (clustering.multires_gaps); a minute or two
+    python -m published.abdelfattah2022 --claims       # the Fig. 4d claims of the original study under its procedure,
+                                                       # the Wilcoxon z and LN (claims.csv); seconds
+    python -m published.abdelfattah2022 --calls        # the Bonferroni calls of each test per cluster and the share up
+                                                       # (calls.csv) with their plot; a few minutes (--plot-only: redraw)
 """
 
 import argparse
@@ -671,7 +672,7 @@ def draw_focus(ax, detail, gsea):
 
 
 def plot(clusters, gsea, detail, depths, values, umap):
-    """The arm's figures, one plot each: the two heatmaps, the depths and depth ratios, the genes ranked up and the
+    """The figures, one plot each: the two heatmaps, the depths and depth ratios, the genes ranked up and the
     sets with positive NES against depth, the focus cluster's genes, the UMAP by cluster and by depth."""
     plot_style.use()
     order, ticks = order_of(clusters)

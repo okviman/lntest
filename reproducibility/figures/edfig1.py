@@ -1,10 +1,9 @@
-"""Extended Data Fig 1: the synthetic NB result beyond the null, assembled from the arm's existing figures.
+"""Extended Data Fig 1: synthetic NB data beyond the null, assembled from the figures of synthetic_nb.
 
 a, b: lfc_ci_ln and lfc_ci_log1p (synthetic_nb.lfc_confidence_intervals).
 c, d: degs_metrics_sparse and degs_metrics_dense (synthetic_nb.de_ratio), each heading centred over its axes.
-Each is drawn by its own drawing code, at the size it prints at; a change to a panel belongs in that code.
 
-    python -m figures.edfig1      # from reproducibility/, a few seconds; needs synthetic_nb's planted-DEG runs
+    python -m figures.edfig1      # from reproducibility/, a few seconds; needs the synthetic_nb runs with DEGs
 """
 
 import matplotlib.pyplot as plt

@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-"""How well does each method's view of a cell type carry over from PBMC3k to PBMC10k: its top markers, its full score
-ranking, its scores, and the GSEA enrichments of that ranking?
+"""How well does the view of each method of a cell type carry over from PBMC3k to PBMC10k: its top markers, its full
+score ranking, its scores and the GSEA enrichments of that ranking?
 
-The cell types of clustering/replication.py are each tested against the rest of the included cells in both datasets,
-the tests run as that script runs them, and each method's genes are ranked by its score. Per method and type: 1, the
-replication arm's top-N concordance; 2, the Spearman correlation of the scores between the datasets over the genes
-tested in both, and over the union of the two datasets' top TOP; 3, the Pearson correlation of the scores, and the
-total-least-squares slope of PBMC10k's on PBMC3k's after dividing each comparison's by the square root of its effective
-cell number; 4, gseapy.prerank on each dataset's full score ranking with the MSigDB Hallmark 2020 sets, and between the
-datasets the Spearman correlation of the normalised enrichment scores and the agreement of the sets significant at FDR q
-below FDR (significant in both with the same sign, over significant in either). A diagnostic repeats 2 and 4 with genes
-ranked by LN's LFC and by scanpy's logfoldchanges, over the genes detected in both the type and the rest; a second
-repeats 3 over the genes significant for every method in both datasets, over the genes well detected in both, and
-over each method's own genes significant in both, all of them and its top EQUAL_K by their weaker score; the top
-CEILING_K's scores in both datasets are kept for the ceiling plot.
+Each cell type of clustering/replication.py is tested against the rest of the included cells in both data sets, with
+the tests run as in that script. The genes of each method are ranked by its score. Per method and type:
+1, the top-N concordance of clustering/replication.py.
+2, the Spearman correlation of the scores between the data sets, over the genes tested in both and over the union of
+the top TOP of the two data sets.
+3, the Pearson correlation of the scores, with the total-least-squares slope of PBMC10k on PBMC3k after dividing the
+scores of each comparison by the square root of its effective cell number.
+4, gseapy.prerank on the full score ranking of each data set with the MSigDB Hallmark 2020 sets. Between the data sets,
+the Spearman correlation of the normalised enrichment scores and the agreement of the sets significant at FDR q below
+FDR (significant in both with the same sign, over significant in either).
+A first diagnostic repeats 2 and 4 with genes ranked by LN's LFC and by scanpy's logfoldchanges, over the genes
+detected in both the type and the rest. A second repeats 3 over the genes significant for every method in both data
+sets, over the genes well detected in both and over the genes of each method significant in both (all of them and the
+top EQUAL_K by their weaker score). The scores of the top CEILING_K in both data sets are kept for the ceiling plot.
 
     python -m clustering.concordance               # from reproducibility/, minutes
     python -m clustering.concordance --plot-only   # redraw from the CSVs
@@ -37,13 +39,13 @@ from paths import fig_name, require_input, results_dir
 GMT = Path.home() / '.cache' / 'gseapy' / 'Enrichr.MSigDB_Hallmark_2020.gmt'
 TOP = 100
 N_MAIN = 10
-PERMUTATIONS, SEED, MIN_SIZE, MAX_SIZE = 1000, 42, 15, 500      # as lymphnode/gsea_utils.py calls prerank
+PERMUTATIONS, SEED, MIN_SIZE, MAX_SIZE = 1000, 42, 15, 500      # gseapy prerank's settings
 FDR = 0.25
 OUT = results_dir(__file__) / 'concordance'
 
 
 def tests():
-    """Both datasets tested, with the replication arm's types, universes and markers; and each comparison's cells."""
+    """Both datasets tested, with the types, universes and markers of clustering/replication.py; and each comparison's cells."""
     data = {name: rep.load(name) for name in rep.DATASETS}
     for adata in data.values():
         rep.run_tests(adata)
@@ -53,7 +55,7 @@ def tests():
 
 
 def markers(data, types):
-    """1: the replication arm's pooled top-N concordance under the score rule, which must reproduce its CSV."""
+    """1: the pooled top-N concordance of clustering/replication.py under the score rule, which must reproduce its CSV."""
     universe = {'PBMC3k': rep.annotation('PBMC10k'), 'PBMC10k': rep.annotation('PBMC3k')}
     table, _ = rep.marker_table(data, universe, types)
     pool = rep.pooled(rep.concordance(table))

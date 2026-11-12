@@ -1,3 +1,14 @@
+"""Simulations with DEGs: the accuracy, precision, TPR, FPR and F1 of each test, in the sparse and dense regimes.
+
+Two groups of 10,000 cells and 1,500 negative binomial genes, 20 replicates per dispersion of X. Each gene is a DEG
+with probability 0.1, with its mean in X multiplied or divided by 1 + s/mu. Sparse regime: non-DEG mean 10,
+s = |N(0, 5)|, dispersion of Y 1, dispersions of X 1, 1.5 and 2. Dense regime: mean 100, s = N(15, 5), dispersion
+of Y 0.1, dispersions of X 0.1, 0.2 and 1. The tests are those of synthetic_nb.null.
+
+    python -m synthetic_nb.de_test                     # from reproducibility/, about 3 minutes, sparse regime
+    python -m synthetic_nb.de_test --setting dense
+"""
+
 import argparse
 
 import numpy as np
@@ -15,7 +26,7 @@ n_genes = 1500
 columns = ["method", "accuracy", "precision", "recall", "tpr", "tnr", "fpr", "fnr", "f1", "dispersion", "rep_no"]
 methods = ["LN", "t-test", 'wilcoxon']
 
-# RECOMB Table 2's design is 'sparse', Table 1's 'dense'.
+# The two designs of Extended Data Fig 1c, d.
 SETTINGS = {
     'sparse': {'non_de_mu': 10, 'd2': 1.0, 'd1s': [1., 1.5, 2.]},
     'dense': {'non_de_mu': 100, 'd2': 0.1, 'd1s': [0.1, 0.2, 1.]},
@@ -82,10 +93,10 @@ def run(setting, seed=0):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser(
-        description="Planted-DEG NB simulations with the designs of RECOMB Tables 1 and 2."
+        description="Planted-DEG NB simulations, the designs of Extended Data Fig 1c, d."
     )
     ap.add_argument('--setting', default='sparse', choices=list(SETTINGS),
-                    help="'sparse' (non-DE mean 10) is Table 2's design; 'dense' (non-DE mean 100) Table 1's")
+                    help="'sparse' (non-DE mean 10) or 'dense' (non-DE mean 100)")
     ap.add_argument('--seed', type=int, default=0)
     args = ap.parse_args()
     run(args.setting, args.seed)

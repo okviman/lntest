@@ -1,5 +1,9 @@
-import os
-import sys
+"""Figures of the kidney runs with planted DEGs: TPR and FPR, AUPRC and precision-recall curves against p.
+
+    python -m kidney.spot_split_plots --csv_file kidney/results/split_degs_results.csv --json_file kidney/results/split_degs_pr_curve_data.json --output_prefix kidney/results/split_degs
+    python -m kidney.spot_split_plots --downsampling ...    # the same for the results of kidney.umi_de
+"""
+
 import numpy as np
 import pandas as pd
 
@@ -28,7 +32,7 @@ def plot_tpr_fpr_results(csv_file, output_file, p_symbol=SPLIT, odds=False):
     """Plot TPR and FPR vs p for all methods."""
     df = pd.read_csv(require_input(
         csv_file,
-        what="this arm's spot-splitting results",
+        what="the results of a kidney run with planted DEGs",
         source="run `python -m kidney.spot_split` first",
     ))
     fig, axes = plt.subplots(1, 2, figsize=plot_style.figsize(2))
@@ -78,7 +82,7 @@ def plot_ap_pr_auc_results(csv_file, output_file, p_symbol=SPLIT, odds=False):
     """Plot AP and PR-AUC vs p for all methods."""
     df = pd.read_csv(require_input(
         csv_file,
-        what="this arm's spot-splitting results",
+        what="the results of a kidney run with planted DEGs",
         source="run `python -m kidney.spot_split` first",
     ))
     fig, axes = plt.subplots(1, 2, figsize=plot_style.figsize(2))
@@ -333,7 +337,7 @@ def plot_summary_figure(csv_file, json_file, output_file, q, lfc, p_symbol=SPLIT
     # Load CSV and JSON
     df = pd.read_csv(require_input(
         csv_file,
-        what="this arm's spot-splitting results",
+        what="the results of a kidney run with planted DEGs",
         source="run `python -m kidney.spot_split` first",
     ))
     with open(json_file, 'r') as f:
@@ -377,7 +381,7 @@ def plot_summary_figure(csv_file, json_file, output_file, q, lfc, p_symbol=SPLIT
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Visualize results from vishd_test_shape_split_shared.py')
+    parser = argparse.ArgumentParser(description='Figures of the kidney runs with planted DEGs')
     parser.add_argument('--csv_file', type=str, required=True,
                         help='Input CSV file with results')
     parser.add_argument('--json_file', type=str, required=True,
@@ -396,7 +400,7 @@ if __name__ == '__main__':
     # Read q and lfc from CSV (should be same for all rows)
     df = pd.read_csv(require_input(
         csv_file,
-        what="this arm's spot-splitting results",
+        what="the results of a kidney run with planted DEGs",
         source="run `python -m kidney.spot_split` first",
     ))
     q = df['q'].iloc[0]

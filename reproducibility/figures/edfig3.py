@@ -1,12 +1,15 @@
-"""Extended Data Fig 3: kidney spot splitting in full, assembled from the arm's existing figures. a: Fig 1f's FPR on the
-no-DEG null with MAST, over the first 3 splits of each p_split (kidney.split_null_mast); b: the share of null genes
-with uncorrected p below 0.05 against p_split, with MAST, over the same splits (kidney.null_calibration.draw_calibration;
-a calibrated test gives 0.05, dashed); one method key; c: split_degs_tpr_fpr, d: split_degs_pr_curves_grid (kidney.spot_split_plots), each with its
-method key and the grid in its own number of columns, with MAST over its first 3 replicates of each p_split
-(kidney.split_degs_mast) beside the others' 100; the AUPRC is Fig 1g. Each is drawn by its own drawing code from
-the saved results, at the size it prints at; a change to a panel belongs in that code.
+"""Extended Data Fig 3: kidney spot splitting in full, assembled from the figures of the kidney experiments.
 
-    python -m figures.edfig3      # from reproducibility/, a few seconds; needs kidney's spot-splitting results
+a: the FPR of Fig 1f on the null without DEGs, with MAST, over the first 3 splits of each p_split
+(kidney.split_null_mast).
+b: the share of null genes with uncorrected p below 0.05 against p_split, with MAST, over the same splits
+(kidney.null_calibration.draw_calibration). A calibrated test gives 0.05, dashed.
+Panels a and b share one method key.
+c, d: split_degs_tpr_fpr and split_degs_pr_curves_grid (kidney.spot_split_plots), each with its method key. MAST is run
+on the first 3 replicates of each p_split (kidney.split_degs_mast), the other tests on 100.
+The AUPRC is Fig 1g.
+
+    python -m figures.edfig3      # from reproducibility/, a few seconds; needs the spot-splitting results
 """
 
 import json

@@ -6,14 +6,14 @@ import plot_style
 from paths import fig_name, results_dir
 
 # -----------------------------------------------------------------------------
-# 1. Define NB parameters so that both X and Y have the SAME MEAN (mu),
-#    but Y has a LARGER variance => more dispersion => phi_Y > phi_X.
+# 1. NB parameters so that X and Y have the same mean mu, and Y the larger
+#    variance (phi_Y > phi_X).
 # -----------------------------------------------------------------------------
 
 mu = 100.0
 
 # We use the "number of successes" (r) and "success probability" (p) parameterization
-# in scipy.stats.nbinom.  In that convention:
+# in scipy.stats.nbinom. In that convention:
 #    Mean = r*(1-p)/p
 #    Var  = r*(1-p)/p^2
 #
@@ -38,7 +38,7 @@ print("For Y: r = {}, p = {:.3f} => mean = {:.1f}, var = {:.1f}".format(
 )
 
 # -----------------------------------------------------------------------------
-# 2. Compute and plot the PMFs for X and Y up to some max count 'k_max'.
+# 2. The PMFs of X and Y up to k_max.
 # -----------------------------------------------------------------------------
 
 k_max = mu + 2 * np.sqrt((mu + mu ** 2 * 1 / rY))
@@ -49,15 +49,13 @@ pmf_X = nbinom.pmf(k_vals, rX, pX)
 pmf_Y = nbinom.pmf(k_vals, rY, pY)
 
 # -----------------------------------------------------------------------------
-# 3. Compute the sign of pY(k) - pX(k)
+# 3. The sign of pY(k) - pX(k)
 # -----------------------------------------------------------------------------
 diff = pmf_Y - pmf_X
 sign_diff = np.sign(diff)  # -1 if (pY < pX), 0 if equal, +1 if (pY > pX)
 
 # -----------------------------------------------------------------------------
-# 4. Plot:
-#    - Top subplot: the two PMFs
-#    - Bottom subplot: the sign of the difference as a step function
+# 4. Top: the two PMFs. Bottom: the sign of their difference, as a step function.
 # -----------------------------------------------------------------------------
 
 plot_style.use()

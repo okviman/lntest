@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
-"""Is LN's SE calibrated on real data, does it say which fold changes carry over to another dataset, and what does its
+"""Is LN's SE calibrated on real data? Does it say which fold changes carry over to another data set? What does the
 decomposition of the fold change show?
 
-PBMC3k and PBMC10k as clustering/replication.py loads them, each of its 6 types against the other included cells. LN
-is get_LN_lfcs_sparse on CP10K as rank_genes_groups_ln calls it; the log1p t-test's effect is the difference in mean
-log1p CP10K with Welch's SE, the quantities its t divides. 1, split halves: SPLITS random halvings of every type's cells,
-z = (effect_A - effect_B) / sqrt(SE_A^2 + SE_B^2) per gene, type and split, by the number of cells detecting the gene
-in the sparser group of the full data; a calibrated SE gives |z| < 1.96 in 95% of pairs. 2, across datasets: LN's
-|LFC_10k - LFC_3k| and the correlation of the LFCs in quintiles of the combined SE, with scanpy's LFC in the same bins.
+PBMC3k and PBMC10k as clustering/replication.py loads them, each of its 6 types against the other included cells. LN is
+get_LN_lfcs_sparse on CP10K, as rank_genes_groups_ln calls it. The effect of the log1p t-test is the difference in mean
+log1p CP10K with Welch's SE, the quantities its t divides.
+1, split halves: SPLITS random halvings of the cells of every type, z = (effect_A - effect_B) / sqrt(SE_A^2 + SE_B^2)
+per gene, type and split, by the number of cells detecting the gene in the sparser group of the full data. A calibrated
+SE gives |z| < 1.96 in 95% of pairs.
+2, across data sets: LN's |LFC_10k - LFC_3k| and the correlation of the LFCs in quintiles of the combined SE, with
+scanpy's LFC in the same bins.
 3, decomposition: LN's LFC is the difference in log2 detection rate plus the difference in log2 mean among detecting
-cells, and its SE^2 a detection and a level term per group; LN's significant up genes classed by the detection part's
-share. 4, CD14 Mono in PBMC3k as the picture. For the figures: the correlation between the datasets of each effect on
-the genes all three methods call up in both; a forest of the example comparison's most extreme LFC per stratum; six
-markers' parts in both datasets; and LN's top markers by its score and by its marker rule, its significant up genes
-ranked by the detection score (the detection part over its SE).
+cells. Its SE^2 is a detection and a level term per group. LN's significant up genes are classed by the share of the
+detection part.
+4, CD14 Mono in PBMC3k as the example.
+For the figures: the correlation between the data sets of each effect on the genes that all three methods call up in
+both, a forest of the most extreme LFC per stratum of the example comparison, the parts of six markers in both data
+sets and LN's top markers by its score and by its marker rule, its significant up genes ranked by the detection score
+(the detection part over its SE).
 
     python -m clustering.lfc_se               # from reproducibility/; a few minutes
     python -m clustering.lfc_se --plot-only   # redraw from the CSVs

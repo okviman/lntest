@@ -1,25 +1,30 @@
-"""Fig 2: the Visium HD lymph node, PBMC10k's multi-resolution clustering and the Abdelfattah et al. 2022 rerun, a block
-each, assembled from the arms' drawing code.
+"""Fig 2: the Visium HD lymph node, multi-resolution clustering of PBMC10k and the rerun of Abdelfattah et al. 2022.
 
-Lymph node (lymphnode.depth_imbalance and depth_gsea, the spot version: the T-cell zone's 2 um spots kept with
-probability p_sub, the B-cell follicles' all): a, the experiment's diagram; b, each test's AUPRC of the T-cell zone's
-pseudo-bulk markers against p_sub; c, the Spearman correlation of each test's Hallmark NES with the pseudo-bulk
-reference's (NES agreement); b and c the mean over the replicates with bars of one SD, as Fig 1's error bars. PBMC10k:
-d, the diagram; e, every cluster at five Leiden resolutions, its variance ratio to the rest at equal mean (2 to the
-median |log2 variance ratio| over the genes whose means agree within 7%, from 1 as Fig 1's Var(Y) / Var(X)), a box at
-each number of clusters, every cluster a point (clustering.multires_gaps); f, the share of each rule's top 20 that are
-housekeeping genes and the share of the cluster's protein markers in it, the mean over each resolution's clusters with
-bars of one standard error, side by side (clustering.marker_rule; LN's markers and LN's score in its colour); e and f
-space the resolutions evenly. Abdelfattah et al. 2022 (published.abdelfattah2022): g, the NES heatmaps of their Fig. 4d
-pathways, their GSEA run as the authors ran it on the Wilcoxon's z-score (scanpy's score) and on LN's score, in square
-cells on one colour range, the sets by short names; h, per cluster, how many of those pathways keep their call (FDR <
-0.05) under LN, lose it, reverse it or gain one; i, MC3 over MC4 in the pathways behind the interpretation the rerun
-contradicts, on one x axis, the Wilcoxon's and LN's NES side by side. The authors' own ranking, the Wilcoxon AUC, is
-Supplementary Fig 8.
-A method key right of c, a key of the marker rules right of f. Each plot is drawn by its own drawing code from the saved results, at the size it prints at; a change to a
-plot belongs in that code.
+One block per data set, assembled from the drawing code of each experiment.
 
-Panel a's images are drawn by figures/diagrams/fig2_lymphnode.py and read as the PDF committed beside it.
+Lymph node, with the 2 um spots of the T-cell zone kept with probability p_sub and every spot of the B-cell follicles
+kept (lymphnode.depth_imbalance and lymphnode.depth_gsea, --thin bins):
+a, the diagram of the experiment, drawn by figures/diagrams/fig2_lymphnode.py and committed as a PDF beside it.
+b, the AUPRC of each test for the pseudo-bulk markers of the T-cell zone, against p_sub.
+c, the Spearman correlation between the Hallmark NES of each test and of the pseudo-bulk reference.
+In b and c, the mean over the replicates with bars of one SD, as in Fig 1.
+
+PBMC10k (clustering.multires_gaps and clustering.marker_rule):
+d, the diagram.
+e, the variance ratio of every cluster to the rest at equal mean, at five Leiden resolutions: 2 to the median |log2
+variance ratio| over the genes whose means agree within 7%. One box per number of clusters, every cluster a point.
+f, the share of housekeeping genes in the top 20 of each rule and the share of the protein markers of the cluster in
+it, as the mean over the clusters of each resolution with bars of one standard error. LN's markers and LN's score are
+in the colour of LN's t-test.
+In e and f, the resolutions are evenly spaced.
+
+Glioma myeloid cells of Abdelfattah et al. 2022 (published.abdelfattah2022):
+g, the NES heatmaps of the Fig. 4d pathways of the original study, with GSEA run as in that study on the Wilcoxon
+z-score (scanpy's score) and on LN's score, on one colour range.
+h, the number of those pathways per cluster that keep their call (FDR < 0.05) under LN, lose it, reverse it or gain one.
+i, the NES of MC3 over MC4 under the Wilcoxon and under LN, in the pathways behind the interpretation that the rerun
+contradicts.
+The ranking of the original study, the Wilcoxon AUC, is Supplementary Fig 8.
 
     python -m figures.fig2      # from reproducibility/, a few seconds; needs the lymph node, clustering and published results
 """

@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""As Leiden resolution increases, do clusters annotated from each method's top markers stay correctly annotated, keep
-their annotation across resolutions, and stay free of other types' markers?
+"""As the Leiden resolution increases, do clusters annotated from the top markers of each method stay correctly annotated,
+keep their annotation across resolutions and stay free of the markers of other types?
 
-Reads clustering/de.py's outputs (each cluster against the rest, five resolutions, both datasets) and runs no tests. Each
-cluster's signature is its top TOP under the practice rule; it is annotated with the curated type (config.yaml) or tied
-types of highest recall, each tied type weighted 1 over their number. Its reference type is the majority of its cells'
-CellTypist labels mapped to the curated types (metrics/celltypes.csv, `coarse`). Readouts per dataset, method and
-resolution: 1, annotation accuracy, the mean weight given to the reference type (clusters with a mapped majority);
-2, the share of cells whose annotation is the same at consecutive resolutions from the middle one up; 3, the share of
-clusters whose top TOP holds another type's marker that is not also the reference type's; 4, at the two finest
-resolutions, the curated markers in one method's top TOP and not another's, with their cluster mean, detection and rank.
+Input: the outputs of clustering/de.py (each cluster against the rest, five resolutions, both data sets). No test is
+run. The signature of each cluster is its top TOP under the practice rule. It is annotated with the curated type
+(config.yaml) or the tied types of highest recall, each tied type weighted 1 over their number. The reference type of
+the cluster is the majority of the CellTypist labels of its cells, mapped to the curated types (metrics/celltypes.csv,
+`coarse`). Readouts per data set, method and resolution:
+1, annotation accuracy, the mean weight given to the reference type (clusters with a mapped majority).
+2, the share of cells whose annotation is the same at consecutive resolutions, from the middle one up.
+3, the share of clusters whose top TOP holds a marker of another type that is not also a marker of the reference type.
+4, at the two finest resolutions, the curated markers in the top TOP of one method and not of another, with their
+cluster mean, detection and rank.
 
     python -m clustering.multires               # from reproducibility/, about a minute
     python -m clustering.multires --plot-only   # redraw from the CSVs

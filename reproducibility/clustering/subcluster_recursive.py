@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""What does each method's ranked list look like as subclustering keeps breaking a cell type apart?
+"""What does the ranked list of each method look like as subclustering keeps breaking a cell type apart?
 
-Each type clustering/celltype_labels.py includes with at least MIN_TYPE cells is subclustered recursively: a cluster of
-at least MIN_PARENT cells is clustered within itself as clustering/de.py clusters, at the lowest of RESOLUTIONS that
-splits it, and each child is tested against its siblings with the three tests as clustering/de.py runs them, over the
-genes detected in at least MIN_DETECTED of the parent's cells; children of at least MIN_PARENT cells are split in turn,
+Each type that clustering/celltype_labels.py includes, with at least MIN_TYPE cells, is subclustered recursively. A
+cluster of at least MIN_PARENT cells is clustered within itself as in clustering/de.py, at the lowest of RESOLUTIONS
+that splits it. Each child is tested against its siblings with the three tests of clustering/de.py, over the genes
+detected in at least MIN_DETECTED of the cells of the parent. Children of at least MIN_PARENT cells are split in turn,
 to MAX_LEVEL. Per child and method: the mean statistic of the top TOP genes, in either direction and as markers,
-against a standard normal's over as many genes; the overlap of the top TOP markers with LN's; what the top TOP are made
-of; and the calls.
+against that of a standard normal over as many genes. The overlap of the top TOP markers with those of LN, what the
+top TOP are made of and the calls.
 
     python -m clustering.subcluster_recursive               # from reproducibility/, minutes
     python -m clustering.subcluster_recursive --plot-only   # redraw from the CSVs
@@ -199,7 +199,7 @@ def draw_depth_term(ax, children, name='PBMC10k', methods=METHODS):
 
 
 def plot(summary, children):
-    """The arm's figures: along the recursion, the top TOP statistics over the noise level, what the strongest are made
+    """The figures: along the recursion, the top TOP statistics over the noise level, what the strongest are made
     of, and the baselines' overlap with LN's markers."""
     plot_style.use()
     panels = (('top_abs_noise', f'Top {TOP} |statistic|\nover noise', METHODS, True, 'recursive_top_statistic'),

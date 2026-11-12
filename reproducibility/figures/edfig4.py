@@ -1,14 +1,14 @@
-"""Extended Data Fig 4: the PBMC clusters' DEGs and their effect sizes, assembled from clustering.effect_sizes' drawing
-code.
+"""Extended Data Fig 4: DEGs of the PBMC clusters and their effect sizes, assembled from the drawing code of
+clustering.effect_sizes.
 
-Every Leiden cluster at five resolutions against the rest. a, b, PBMC10k and PBMC3k: each test's significant genes
-(Bonferroni 0.05) per cluster; c, d: their mean |LFC| as each package reports it (LN's estimate, Scanpy's for the log1p
-t-test, Seurat 5's for the Wilcoxon), with the difference of log1p means the log1p t-test tests, lighter. A box per
-series at each resolution, every cluster a point, each box under its counterpart above; one log axis per row, a key per
-row. Each plot is drawn by its own drawing code from the saved results, at the size it prints at; a change to a plot
-belongs in that code.
+Every Leiden cluster at five resolutions is tested against the rest.
+a, b: the number of significant genes (Bonferroni 0.05) per cluster for each test, in PBMC10k (a) and PBMC3k (b).
+c, d: their mean |LFC| as each package reports it: LN's estimate, scanpy's for the log1p t-test and Seurat 5's for the
+Wilcoxon. The difference of log1p means, which the log1p t-test tests, is drawn lighter.
+One box per series at each resolution, every cluster a point, each box under its counterpart above. One log axis and
+one key per row.
 
-    python -m figures.edfig4      # from reproducibility/, seconds; needs clustering.effect_sizes' results
+    python -m figures.edfig4      # from reproducibility/, seconds; needs the results of clustering.effect_sizes
 """
 
 import matplotlib.pyplot as plt

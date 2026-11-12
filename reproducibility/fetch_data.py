@@ -8,12 +8,11 @@ Run from reproducibility/::
     python -m fetch_data --list          # what is needed, what is present
     python -m fetch_data --check         # verify what exists, download nothing
 
-Idempotent: a file whose sha256 already matches is left alone. A file that
-exists with the wrong digest is reported and not silently overwritten -- pass
---force to replace it.
+A file whose sha256 already matches is left alone. A file with the wrong digest is reported and kept. Pass --force to
+replace it.
 
-Exit codes: 0 all requested inputs present and verified; 1 something is missing
-or failed to verify; 2 a file exists but its digest does not match.
+Exit codes: 0 when every requested input is present and verified, 1 when an input is missing or failed to verify,
+2 when a file exists but its digest does not match.
 """
 from __future__ import annotations
 
@@ -59,13 +58,12 @@ def status(entry):
     want = entry.get("sha256")
 
     if want is None:
-        # No digest: for the multi-GB spatial archives computing one means
-        # downloading them first, so `bytes` is the available check. It catches
-        # truncation, which is the realistic failure, and nothing else.
+        # The multi-GB spatial archives are pinned by size only, which catches
+        # a truncated download.
         if want_bytes is None:
             return "UNPINNED", f"present, {size} bytes, nothing to check against"
         if size == want_bytes:
-            return "SIZE-OK", f"{size} bytes, size only -- no sha256"
+            return "SIZE-OK", f"{size} bytes, size only, no sha256"
         return "MISMATCH", f"have {size} bytes, want {want_bytes}"
 
     if want_bytes is not None and size != want_bytes:
@@ -78,30 +76,16 @@ def status(entry):
 
 def download(entry, dest: pathlib.Path):
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if "url" in entry:
-        print(f"  downloading {entry['url']}")
-        tmp = dest.with_suffix(dest.suffix + ".part")
-        # .part until complete, so an interrupted run cannot leave a truncated
-        # file that later looks present.
-        #
-        # The User-Agent is load-bearing: 10x's CDN answers urllib's default
-        # ("Python-urllib/3.x") with 403 while serving the same URL to curl.
-        req = urllib.request.Request(entry["url"], headers={"User-Agent": USER_AGENT})
-        with urllib.request.urlopen(req) as r, tmp.open("wb") as fh:
-            while block := r.read(CHUNK):
-                fh.write(block)
-        tmp.replace(dest)
-    elif "command" in entry:
-        print(f"  running: {entry['command']}")
-        ns: dict = {}
-        exec(entry["command"], ns)  # noqa: S102 - manifest is repo-controlled
-        obj = ns.get("p")
-        if obj is None:
-            raise RuntimeError(f"{entry['name']}: command set no `p` to write")
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        obj.write_h5ad(dest)
-    else:
-        raise RuntimeError(f"{entry['name']}: entry has neither url nor command")
+    print(f"  downloading {entry['url']}")
+    # Written to .part until complete, so an interrupted download is not taken
+    # for a present file.
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    # 10x's CDN refuses urllib's default User-Agent.
+    req = urllib.request.Request(entry["url"], headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req) as r, tmp.open("wb") as fh:
+        while block := r.read(CHUNK):
+            fh.write(block)
+    tmp.replace(dest)
 
 
 def extract(entry, dest: pathlib.Path):
@@ -115,7 +99,7 @@ def extract(entry, dest: pathlib.Path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--arm", help="only inputs this arm needs")
+    ap.add_argument("--arm", help="only the inputs of one experiment directory")
     ap.add_argument("--list", action="store_true", help="report status, change nothing")
     ap.add_argument("--check", action="store_true", help="verify what exists, download nothing")
     ap.add_argument("--force", action="store_true", help="re-download even if present")

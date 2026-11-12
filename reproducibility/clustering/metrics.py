@@ -1,15 +1,11 @@
 #!/usr/bin/env python3
-"""
-Script to compute clustering metrics (no DE performed in this script).
+"""Cluster-level and cell-type-level metrics from the DE results of clustering/de.py.
 
-This script expects an AnnData file that already contains precomputed 
-differential expression (DE) results for multiple clustering resolutions and DE methods.
-It computes and saves cluster-level and cell-type level metrics (Jaccard indices, 
-number of significant DEGs, average |LFC|, etc) as CSV files in an output folder.
-Uses evaluation_utils for all metrics.
+Reads the DE-annotated AnnData that clustering/de.py wrote into --output-dir and writes the
+Jaccard indices and recall against the configured markers, the number of significant DEGs and
+their mean |LFC| per cluster, as CSVs in --output-dir/metrics/.
 
-Usage:
-    python compute_clustering_metrics.py --config config.yaml [--output-dir clustering/results/]
+    python -m clustering.metrics --config clustering/config.yaml --output-dir clustering/results
 """
 
 import argparse
@@ -22,8 +18,7 @@ import pandas as pd
 from paths import require_input, results_dir
 import scanpy as sc
 
-# Run from reproducibility/ as `python -m clustering.metrics`, which puts that
-# directory on sys.path -- no path manipulation needed.
+from clustering.heldout_fp import de_output
 from evaluation_utils import (
     jaccard_index,
     recall,
@@ -56,20 +51,16 @@ def main():
     )
     parser.add_argument(
         '--output-dir', type=str, default=str(results_dir(__file__)),
-        help='Base output directory; metric CSVs are written to its "metrics" subfolder (default: clustering/results)'
-    )
-    parser.add_argument(
-        '--skip-plots', action='store_true',
-        help='(Ignored: plotting is always skipped in this version)'
+        help='The --output-dir of clustering.de; metric CSVs are written to its "metrics" subfolder '
+             '(default: clustering/results)'
     )
 
     args = parser.parse_args()
     config = load_config(args.config)
     # Metric CSVs live in the "metrics" subfolder of the output directory
     metrics_dir = os.path.join(args.output_dir, "metrics")
-    os.makedirs(metrics_dir, exist_ok=True)
 
-    adata_path = config['adata_path']
+    adata_path = de_output(config['adata_path'], args.output_dir)
     leiden_resolutions = config['leiden_resolutions']
     top_genes = config['top_genes']
     markers = config['markers']
@@ -87,9 +78,10 @@ def main():
     print(f"Loading AnnData from {adata_path} ...")
     adata = sc.read_h5ad(require_input(
         adata_path,
-        what="the DE-annotated AnnData this arm scores",
-        source="run `python -m clustering.de` first",
+        what="the DE-annotated AnnData",
+        source="python -m clustering.de with the same --config and --output-dir",
     ))
+    os.makedirs(metrics_dir, exist_ok=True)
 
     # ----------- Metrics computations start here ------------
 

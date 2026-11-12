@@ -6,7 +6,7 @@ from ._ln_test import get_LN_lfcs, get_LN_lfcs_sparse, trigamma_diff
 
 def _to_dense(a):
     """Convert (possibly sparse) matrix to a dense numpy array."""
-    if sp is not None and sp.issparse(a):
+    if sp.issparse(a):
         return a.toarray()
     # anndata can sometimes give numpy matrix; force ndarray
     return np.asarray(a)
@@ -72,30 +72,66 @@ def rank_genes_groups_ln(
     use_raw: bool | None = None,
     layer: str | None = None,
     key_added: str = "rank_genes_groups",
-    test: str = "t",  # forwarded to get_LN_lfcs
+    test: str = "t",
     rankby_abs: bool = False,
     sparse: bool = True,
     corr_method: str = "benjamini-hochberg",
     rankby: str = "score",
 ):
-    """
-    Takes normalized data and performs LN's t-test. Updates the adata object with the results.
+    """Rank the genes of each group by LN's t-test, as ``scanpy.tl.rank_genes_groups`` does.
 
+    Parameters
+    ----------
+    adata
+        Annotated data matrix of counts or normalized values, not
+        log-transformed. Each cell is scaled to 10,000 before the test.
+    groupby
+        The column of ``adata.obs`` that holds the groups.
+    groups
+        The groups to test, or ``None`` or ``"all"`` for every group.
+    reference
+        ``"rest"`` to test each group against all other cells, or the group to
+        test each group against.
+    n_genes
+        The number of genes stored per group, or ``None`` for all of them.
+    use_raw
+        Whether to test ``adata.raw``. By default ``True`` when ``adata.raw``
+        exists and ``layer`` is not given.
+    layer
+        The layer to test, in place of ``adata.X``.
+    key_added
+        The key of ``adata.uns`` the results are stored under.
+    test
+        ``"t"`` for the t-test with Welch's degrees of freedom, any other value
+        for a z-test.
+    rankby_abs
+        Whether to rank the genes by the absolute value of the statistic.
+    sparse
+        Whether to pass each group's matrix on as sparse. Both values give the
+        same results.
     corr_method
         Multiple-testing correction, using scanpy's vocabulary and scanpy's
         implementation: ``"benjamini-hochberg"`` or ``"bonferroni"``.
         The default is scanpy's, Benjamini-Hochberg.
     rankby
-        ``"score"`` orders each group's genes by the test statistic, as scanpy
-        does. ``"markers"`` puts the group's markers first: the genes with
-        adjusted p below 0.05 and a positive statistic, ranked by the marker
-        score, the log ratio of the group's and the reference's detection
-        rates over its standard error (``sqrt(1/a - 1/n)`` per side, with ``a``
-        the cells detecting the gene floored at 1), ties to the statistic and
-        then the gene name; genes that every cell detects, scoring 0/0, come
-        last among them. The other genes follow as ``"score"`` orders them,
-        and the marker scores are stored as ``marker_scores``. The paper calls
-        markers with ``corr_method="bonferroni"``.
+        ``"score"`` orders the genes of each group by the test statistic, as
+        scanpy does. ``"markers"`` puts the markers of the group first: the
+        genes with adjusted p below 0.05 and a positive statistic, ranked by
+        the marker score. The marker score is the log ratio of the detection
+        rates of the group and of the reference over its standard error
+        (``sqrt(1/a - 1/n)`` per side, with ``a`` the cells detecting the gene
+        floored at 1). Ties go to the statistic and then the gene name. Genes
+        that every cell detects score 0/0 and come last among the markers.
+        The other genes follow in the ``"score"`` order. The marker scores are
+        stored as ``marker_scores``. The paper calls markers with
+        ``corr_method="bonferroni"``.
+
+    Returns
+    -------
+    None. ``adata.uns[key_added]`` holds scanpy's ``names``, ``scores`` (the test
+    statistic), ``logfoldchanges``, ``pvals`` and ``pvals_adj``. It also holds
+    ``lfc_se``, the standard error of each LFC. With ``rankby="markers"`` it holds
+    ``marker_scores`` too.
     """
 
     if groupby not in adata.obs:
@@ -150,13 +186,11 @@ def rank_genes_groups_ln(
     logfoldchanges = np.recarray((n_store,), dtype=dtype_float)
     pvals = np.recarray((n_store,), dtype=dtype_float)
     pvals_adj = np.recarray((n_store,), dtype=dtype_float)
-    # Stored so a confidence interval is reachable without bypassing this
-    # wrapper: lfc +/- 1.96 * lfc_se.
+    # lfc +/- 1.96 * lfc_se is a 95% confidence interval.
     lfc_se = np.recarray((n_store,), dtype=dtype_float)
     if rankby == "markers":
         marker_scores = np.recarray((n_store,), dtype=dtype_float)
 
-    # Main loop
     obs_vals = adata.obs[groupby].values
     for g in use_groups:
 
@@ -181,7 +215,6 @@ def rank_genes_groups_ln(
                 return_statistic=True,
             )
         else:
-            # This is slow: 0.1 seconds
             Y_ = _to_dense(Y_)
             X_ = _to_dense(X_)
             lfc_vec, p_vec, statistic_vec = get_LN_lfcs(
@@ -193,19 +226,13 @@ def rank_genes_groups_ln(
         lfc_vec = np.asarray(lfc_vec, dtype=float)
         p_vec = np.asarray(p_vec, dtype=float)
         statistic_vec = np.asarray(statistic_vec, dtype=float)
-        # The standard error, without a second pass over the data.
-        # statistic = (mu_Y - mu_X) / sqrt(se_Y^2 + se_X^2) and lfc = mu_Y - mu_X,
-        # so sqrt(se_Y^2 + se_X^2) = lfc / statistic exactly. Calling the
-        # estimator again for it would double the cost of every arm.
+        # The standard error without a second pass over the data:
+        # statistic = lfc / sqrt(se_Y^2 + se_X^2), so the SE is lfc / statistic.
         with np.errstate(divide="ignore", invalid="ignore"):
             se_vec = np.abs(lfc_vec / statistic_vec)
-        # lfc == 0 gives 0/0; the SE is finite there but unrecoverable this way,
-        # so it is left as NaN rather than guessed at.
+        # lfc == 0 gives 0/0, so the SE is NaN there.
         se_vec[~np.isfinite(se_vec)] = np.nan
         q_vec = _adjust_pvalues(p_vec, corr_method, n_vars)
-
-        safe_p = np.clip(p_vec, 1e-300, 1.0)
-        # score_vec = np.sign(lfc_vec) * (-np.log10(safe_p))
         score_vec = statistic_vec
 
         # Rank genes
@@ -240,7 +267,7 @@ def rank_genes_groups_ln(
             "n_genes": n_genes,
             "use_raw": bool(use_raw),
             "layer": layer,
-            "method": "ln_wrapper",  # custom label
+            "method": "ln_wrapper",
             "test": test,
             "rankby_abs": rankby_abs,
             "rankby": rankby,

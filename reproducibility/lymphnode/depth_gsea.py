@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Lymph node, the T-cell zone's reads thinned and the B-cell follicles whole: does each test's Hallmark enrichment of
-the B-cell follicles against the T-cell zone keep agreeing with the pseudo-bulk reference's as the T-cell zone's variance
-grows?
+"""Lymph node, with the reads of the T-cell zone thinned and the B-cell follicles whole: does the Hallmark enrichment of
+each test, B-cell follicles against T-cell zone, keep agreeing with that of the pseudo-bulk reference as the variance
+of the T-cell zone grows?
 
-The conditions, cells, filters and tests of lymphnode/depth_imbalance.py, its replicates 0 to REPLICATES - 1 (the same
-draws; the unthinned data once). Each test's score ranking of the B-cell follicles against the
-T-cell zone (all tested genes; LN's score) and the reference's Wald statistic,
-oriented B over T (and, alongside, its log2 fold change), go through clustering.concordance.prerank (MSigDB Hallmark
-2020, 1,000 permutations, seed 42), in this process one ranking at a time. Readout per task and method: the Spearman
-correlation between its NES and the reference's. Each task's depth ratio and scores must reproduce depth_imbalance.py's
-results.csv.
+The conditions, cells, filters and tests of lymphnode/depth_imbalance.py, with its replicates 0 to REPLICATES - 1 (the
+same draws) and the unthinned data once. The score ranking of each test over all tested genes (LN's score for LN) goes
+through clustering.concordance.prerank (MSigDB Hallmark 2020, 1,000 permutations, seed 42), one ranking at a time. So
+does the Wald statistic of the reference, oriented B over T, with its log2 fold change alongside. Readout per task and
+method: the Spearman correlation between its NES and those of the reference. The depth ratio and scores of each task
+must reproduce the results.csv of depth_imbalance.py.
 
     python -m lymphnode.depth_gsea --config lymphnode/config_50rep.yaml               # from reproducibility/, minutes
     python -m lymphnode.depth_gsea --config lymphnode/config_50rep.yaml --thin bins   # the spot version

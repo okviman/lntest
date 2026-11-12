@@ -1,24 +1,15 @@
 rm(list=ls())
-# Only these two are used: Seurat for LayerData/as.SingleCellExperiment, and
-# zellkonverter for writeH5AD. This script also loaded anndata, basilisk,
-# data.table, dplyr, ggplot2, reticulate and splatter and touched none of them,
-# which made the arm's R dependencies look far heavier than they are.
+# Seurat for LayerData and as.SingleCellExperiment, zellkonverter for writeH5AD.
 library(Seurat)
 library(zellkonverter)
 
-# Paths are relative to this script's directory (citeseq/R/), which is what
-# ZILN.Rproj sets as the R working directory. The arm's committed input lives in
-# citeseq/data/; everything this chain produces goes to citeseq/results/.
+# Run from citeseq/R/ (cd citeseq/R && Rscript <script>), as the paths are relative to it.
+# The committed input is in citeseq/data/, and every output goes to citeseq/results/.
 data_dir <- "../data/"
 results_dir <- "../results/"
 dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
-
-# zellkonverter manages its own Python through basilisk, so nothing here needs an
-# interpreter named by hand.
-#
-# Also removed an unused `methods` vector naming five Seurat DE tests; this
-# script converts an object and runs no test.
+# zellkonverter manages its own Python through basilisk.
 
 MIN_READS <- 3
 MIN_CELLS <- 5

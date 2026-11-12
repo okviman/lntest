@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-"""
-Assign Visium HD 2um spots to shapes and aggregate counts.
+"""Assign Visium HD 2 um spots to shapes and aggregate their counts.
 
 Steps:
-1) Load shapes GeoParquet (must include 'ID' and 'geometry'); compute bbox per shape and sort by (minx, maxx, miny, maxy).
-2) Load 16um tissue positions parquet and plot with shapes for sanity check.
-3) Load 2um tissue positions parquet; for each spot:
-   - Filter candidate shapes via bbox containment
-   - Exact test: point within polygon; if exactly one match -> assign; if >1 -> skip and count; if 0 -> skip and count
-4) Load 10x filtered_feature_bc_matrix.h5 for 2um and aggregate counts per shape ID
-5) Save aggregated h5ad and optional plots
+1) Load the shapes GeoParquet (with 'ID' and 'geometry'), compute the bounding box of each shape and sort by
+   (minx, maxx, miny, maxy).
+2) Load the 16 um tissue positions and plot them with the shapes as a sanity check.
+3) Load the 2 um tissue positions. For each spot, filter the candidate shapes by bounding box, then test whether the
+   spot is within each polygon. A spot in exactly one shape is assigned to it. Spots in none or in several are skipped
+   and counted.
+4) Load the 10x filtered_feature_bc_matrix.h5 of the 2 um bins and aggregate the counts per shape ID.
+5) Save the aggregated h5ad and the optional plots.
 """
 import argparse
-import os
 from typing import List, Tuple, Optional, Dict
 
-import numpy as np
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point

@@ -1,15 +1,16 @@
-"""Each test's effect sizes in PBMC10k's and PBMC3k's multi-resolution clustering, as each package reports them.
+"""The effect sizes of each test in the multi-resolution clustering of PBMC10k and PBMC3k, as each package reports them.
 
-Every Leiden cluster against the rest at five resolutions: the mean |LFC| over the test's significant genes (Bonferroni
-0.05, clustering.de). LN's t-test's LFC estimate, the log1p t-test's LFC as Scanpy reports it (logfoldchanges, the
-log2 ratio of expm1 of the mean log1p CP10K) and the difference the log1p t-test tests (the log2 difference of the mean
-log1p CP10K, the arm's "actual LFC") come from clustering.metrics' avg_lfc_by_resolution.csv; the Wilcoxon's as
-Seurat 5's FindMarkers reports it (avg_log2FC: log2 of the summed CP10K plus 1, over the cells, cluster against rest) is
-computed here from the DE output's norm_counts layer, for the Wilcoxon's significant genes. With each test's number of
-significant genes per cluster, the genes those means are over (clustering.metrics' n_sig_genes_by_resolution.csv), drawn
-by draw_degs in the same slots as draw_effect_sizes, so the two line up.
+Every Leiden cluster against the rest at five resolutions: the mean |LFC| over the significant genes of the test
+(Bonferroni 0.05, clustering.de). Three effects come from avg_lfc_by_resolution.csv of clustering.metrics: the LFC
+estimate of LN's t-test, the LFC of the log1p t-test as scanpy reports it (logfoldchanges, the log2 ratio of expm1 of
+the mean log1p CP10K) and the difference that the log1p t-test tests (the log2 difference of the mean log1p CP10K, the
+"actual LFC" of clustering.metrics). The Wilcoxon effect as Seurat 5's FindMarkers reports it (avg_log2FC: log2 of the
+summed CP10K plus 1 over the cells, cluster against rest) is computed here from the norm_counts layer of the DE output,
+for the significant genes of the Wilcoxon. draw_degs draws the number of significant genes per cluster of each test,
+the genes those means are over (n_sig_genes_by_resolution.csv of clustering.metrics), in the slots of
+draw_effect_sizes, so the two line up.
 
-    python -m clustering.effect_sizes              # from reproducibility/, seconds; both datasets
+    python -m clustering.effect_sizes              # from reproducibility/, seconds; both data sets
     python -m clustering.effect_sizes --plot-only  # redraw from the CSVs
 """
 
@@ -35,7 +36,7 @@ NAMES = ('PBMC10k', 'PBMC3k')
 OUT = results_dir(__file__) / 'effect_sizes'
 CSVS = {name: OUT / f'{name.lower()}.csv' for name in NAMES}
 ARM = {'LN test': 'ln', 'Scanpy t-test (log1p)': 't_test', 'Scanpy t-test (actual LFC)': 't_test_log1p',
-       'Scanpy Wilcoxon (log1p)': 'wilcoxon'}   # the arm's labels
+       'Scanpy Wilcoxon (log1p)': 'wilcoxon'}   # clustering.metrics' labels
 SOURCE = {'ln': "LN's estimate", 't_test': "Scanpy's LFC", 't_test_log1p': 'difference of log1p means',
           'wilcoxon': "Seurat's LFC"}
 ORDER = ('ln', 't_test', 't_test_log1p', 'wilcoxon')

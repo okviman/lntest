@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Do LN's markers, ranked by the lower confidence bound of their fold change, replicate and read better than by score?
 
-Each rule orders a method's Bonferroni-significant genes with a positive score: by the score (the practice rule), by the
-reported LFC, and, for LN, by LFC - Z * SE (SE = LFC / score, exact for LN) over the genes detected in the comparison
-group (genes it lacks get their LFC and SE from LN's zero-detection fallback); as sensitivities, the same with those
-genes kept, and with the Bonferroni quantile of the comparison's genes for Z; and, for the log1p t-test in readout A, the
-lower bound of its own effect, the difference in mean log1p d, as d - Z d / t. Readouts: A, clustering/replication.py's
-cross-dataset concordance; B, curated-marker recovery in each Leiden cluster's top TOP, as clustering/metrics.py computes
-it; C, the share of ribosomal and mitochondrial genes in each top TOP; D, in the PBMC10k subclusters of
-clustering/subcluster_de.py that another lineage's protein separates from their siblings, the share of each top TOP
-that are that lineage's genes. Every top TOP also records its share of genes undetected in the comparison group.
+Each rule orders the Bonferroni-significant genes of a method with a positive score: by the score (the practice rule),
+by the reported LFC and, for LN, by LFC - Z * SE (SE = LFC / score, exact for LN) over the genes detected in the
+comparison group. The genes it lacks get their LFC and SE from LN's zero-detection fallback. As sensitivities, the same
+with those genes kept, or with the Bonferroni quantile of the genes of the comparison for Z. For the log1p t-test in
+readout A, the lower bound of its own effect, the difference d in mean log1p, as d - Z d / t.
+Readouts: A, the cross-data-set concordance of clustering/replication.py. B, the recovery of curated markers in the top
+TOP of each Leiden cluster, as in clustering/metrics.py. C, the share of ribosomal and mitochondrial genes in each top
+TOP. D, in the PBMC10k subclusters of clustering/subcluster_de.py that the protein of another lineage separates from
+their siblings, the share of each top TOP that are genes of that lineage. Every top TOP also records its share of genes
+undetected in the comparison group.
 
     python -m clustering.lower_bound               # from reproducibility/, minutes
     python -m clustering.lower_bound --plot-only   # redraw from the CSVs

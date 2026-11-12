@@ -1,5 +1,11 @@
+"""Cell polygons and their graph-based cluster from the 10x segmentation GeoJSON, as GeoParquet.
+
+    python lymphnode/extract_cluster_from_geojson.py <cells.geojson> <out.parquet> --keep-clusters Cluster-1,Cluster-3
+
+Run by lymphnode/reproduce_vishd_cluster1_cluster3.sh.
+"""
+
 import geopandas as gpd
-import pandas as pd
 import json
 import argparse
 import sys

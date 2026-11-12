@@ -3,12 +3,9 @@
 __pycache__
 .DS_Store
 
-# Downloaded / generated data — keep out of git
-notebooks/scrnaseq_reanalyses/data/
-notebooks/scrnaseq_reanalyses/cache/
-notebooks/scrnaseq_reanalyses/output/
+# Downloaded or generated data
+notebooks/scrnaseq_reanalyses/
 reproducibility/data/
-reproducibility/celltype/data/
 reproducibility/output/
 *.h5ad
 *.gmt

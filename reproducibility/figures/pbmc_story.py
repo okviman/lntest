@@ -1,18 +1,19 @@
-"""PBMC block after the marker decision (LN's markers are its significant up genes ranked by the detection score, gene
-rankings are its score), assembled from clustering.multires_depth's, clustering.lfc_se's and clustering.marker_rule's
-drawing code.
+"""PBMC markers and depth, a figure outside the paper, assembled from the drawing code of clustering.multires_depth,
+clustering.lfc_se and clustering.marker_rule.
 
-a, b, every Leiden cluster at five resolutions against the rest, PBMC10k and PBMC3k: its median score over its expressed
-genes against its log2 depth ratio, one colour per method; c, each rule's top N markers in PBMC3k found again in
-PBMC10k's top N, LN's markers and LN's score in LN's colour, the log1p t-test and the Wilcoxon in theirs (the colours of
-every marker panel); d, LN's top 10 markers in PBMC3k by its score and by its marker rule. e-i, every cluster at the five
-resolutions, mean per resolution of its top 20: e, f, Monaco et al. 2019's immune housekeeping genes; g, h, genes the
-Human Protein Atlas (25.1) calls enriched for the cluster's majority type; i, PBMC10k, the genes of the cluster's
-protein markers (13 antibodies, AUC >= 0.75) that are in the top 20; j, the same per protein at the resolutions of at
-least 18 clusters, with the number of clusters where it is a marker. Each plot is drawn by its own drawing code from the
-saved results; a change to a plot belongs in that code.
+LN's markers are its significant up genes ranked by the detection score. Its gene rankings are by its score.
+a, b, every Leiden cluster at five resolutions against the rest, in PBMC10k (a) and PBMC3k (b): the median score over
+the expressed genes of the cluster against its log2 depth ratio, one colour per method.
+c, the top N markers of each rule in PBMC3k that are found again in the top N in PBMC10k. LN's markers and LN's score
+are in the colour of LN, the log1p t-test and the Wilcoxon in theirs.
+d, LN's top 10 markers in PBMC3k by its score and by its marker rule.
+e-i, every cluster at the five resolutions, as the mean per resolution over the top 20 of each cluster:
+e, f, the immune housekeeping genes of Monaco et al. 2019.
+g, h, the genes that the Human Protein Atlas (25.1) calls enriched for the majority type of the cluster.
+i, PBMC10k, the genes of the protein markers of the cluster (13 antibodies, AUC >= 0.75) in the top 20.
+j, the same per protein at the resolutions of at least 18 clusters, with the number of clusters where it is a marker.
 
-    python -m figures.pbmc_story      # from reproducibility/, seconds; needs multires_depth's, lfc_se's and marker_rule's results
+    python -m figures.pbmc_story      # from reproducibility/, seconds; needs the results of multires_depth, lfc_se and marker_rule
 """
 
 import matplotlib.pyplot as plt

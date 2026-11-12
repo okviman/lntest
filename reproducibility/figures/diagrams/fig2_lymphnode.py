@@ -1,13 +1,13 @@
-"""Fig 2a at print size: the lymph node's images, 1.42 in high, the width from the images.
+"""Fig 2a at print size: images of the lymph node, 1.42 in high, the width set by the images.
 
-The Visium HD section's hires H&E with every Cluster 1 (T-cell zone) and Cluster 3 (B-cell follicle) cell filled, with
-their colour key; a 40 um window where both meet, on the full-resolution H&E, the T-cell zone's 2 um spots kept (filled)
-or dropped (open) at p = 0.5, a cell never left with fewer than 3 (lymphnode.depth_imbalance --thin bins), the
-follicles' all kept.
+The hires H&E of the Visium HD section, with every Cluster 1 (T-cell zone) and Cluster 3 (B-cell follicle) cell filled,
+with their colour key. A 40 um window where both meet, on the full-resolution H&E, with the 2 um spots of the T-cell
+zone kept (filled) or dropped (open) at p = 0.5, no cell left with fewer than 3 (lymphnode.depth_imbalance --thin bins).
+Every spot of the follicles is kept.
 
-Reads lymphnode/data, the full-resolution H&E included (fetch_data, lymphnode-he-fullres), and writes
-figures/diagrams/fig2_lymphnode_diagram.pdf, which figures.fig2 places on the page. The PDF is committed, so assembling
-Fig 2 does not need this script's 2 GB image.
+Input: lymphnode/data, with the full-resolution H&E (fetch_data, lymphnode-he-fullres). Output:
+figures/diagrams/fig2_lymphnode_diagram.pdf, placed on the page by figures.fig2. The PDF is committed, so assembling
+Fig 2 does not need the 2 GB image.
 
     python -m figures.diagrams.fig2_lymphnode      # from reproducibility/
 """

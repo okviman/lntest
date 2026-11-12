@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Does clustering at finer Leiden resolution open variance gaps between each cluster and the rest, and how do each
-method's calls, top markers and pathway enrichments behave across resolutions, judged against sorted-cell bulk?
+"""Does clustering at finer Leiden resolution open variance gaps between each cluster and the rest? How do the calls, top
+markers and pathway enrichments of each method behave across resolutions, judged against sorted-cell bulk?
 
-Reads clustering/de.py's outputs (each cluster against all other cells, five resolutions, both datasets) and reruns no
-test. Per comparison, three gaps between the cluster and the rest, on CP10K over the genes detected in at least
-MIN_DETECT cells on each side: the median |log2 variance ratio| over the genes whose means agree within EQUAL_MEAN
-(log2), the same over all those genes, and |log2| of the ratio of median counts per cell. Per comparison and method: the
-number of Bonferroni-significant genes (either direction, and up); the top TOP under the practice rule; gseapy prerank
-on the full score ranking. A cluster's reference type is the majority of its cells' mapped CellTypist labels. Truth:
-Monaco et al. 2019's sorted-cell bulk (data_sources.yaml), each type the mean of the populations BULK maps to it: the
-type's genes with at least MIN_TPM and BULK_FOLD times the rest's profile weighted by its cells' types, and prerank on
-log2((type + 1) / (rest + 1)). The curated markers of config.yaml are not used: they are the Seurat PBMC3k tutorial's,
-read from Wilcoxon output on PBMC3k. Readouts per dataset, method and resolution, and the stability of a cell's top
-TOP and NES between consecutive resolutions.
+Input: the outputs of clustering/de.py (each cluster against all other cells, five resolutions, both data sets). No
+test is rerun.
+Per comparison, three gaps between the cluster and the rest, on CP10K over the genes detected in at least MIN_DETECT
+cells on each side: the median |log2 variance ratio| over the genes whose means agree within EQUAL_MEAN (log2), the
+same over all those genes and |log2| of the ratio of median counts per cell.
+Per comparison and method: the number of Bonferroni-significant genes (in either direction and up), the top TOP under
+the practice rule and gseapy prerank on the full score ranking.
+The reference type of a cluster is the majority of the mapped CellTypist labels of its cells. The truth is the
+sorted-cell bulk of Monaco et al. 2019 (data_sources.yaml), each type the mean of the populations that BULK maps to it.
+The genes of a type are those with at least MIN_TPM and BULK_FOLD times the profile of the rest, weighted by the types
+of its cells. Prerank runs on log2((type + 1) / (rest + 1)). The curated markers of config.yaml are not used, since
+they come from the Wilcoxon output of the Seurat PBMC3k tutorial.
+Readouts per data set, method and resolution, with the stability of the top TOP and of the NES between consecutive
+resolutions.
 
     python -m fetch_data --arm clustering              # from reproducibility/; the sorted-cell bulk, 15 MB
     python -m clustering.multires_gaps                 # about 15 minutes
@@ -74,7 +77,7 @@ def bulk_profiles():
 
 
 def ensembl_ids(name, genes):
-    """Each of the arm's gene names' Ensembl ID, from the dataset's 10x annotation; NaN where none."""
+    """The Ensembl ID of each gene name, from the dataset's 10x annotation; NaN where none."""
     if name == 'PBMC10k':
         with h5py.File(require_input(RAW, what="the 5' PBMC 10k matrix", source='python -m fetch_data --arm citeseq'),
                        'r') as f:

@@ -1,13 +1,14 @@
-"""Planted effects in PBMC10k's memory CD4 T cells, unnumbered (the 10x 5' PBMC 10k CITE-seq run, the cells
-selected by surface protein, CD3+ CD4+ CD45RA-, the effects planted in their RNA), assembled from the citeseq arm's
-drawing code.
+"""Planted effects in the memory CD4 T cells of PBMC10k, a figure outside the paper, assembled from the drawing code of
+citeseq.plots.
 
-a: lfc_vs_true_all_methods, b: lfc_error_all_methods, LN's, Scanpy's and Seurat's LFC estimates of the planted genes
-against the true LFC; c: degs_summary, TPR and FPR at Bonferroni 0.05, AUPRC and the mean PR curves over the replicates,
-in one row with its key, the boxes named by colour only (citeseq.plots). Each is drawn by its own drawing code from the saved results, at the size it
-prints at; a change to a panel belongs in that code.
+The cells are those of the 10x 5' PBMC 10k CITE-seq run selected by surface protein (CD3+ CD4+ CD45RA-), with effects
+planted in their RNA.
+a, b: lfc_vs_true_all_methods and lfc_error_all_methods, the LFC estimates of LN, scanpy and Seurat for the planted
+genes against the true LFC.
+c: degs_summary, the TPR and FPR at Bonferroni 0.05, the AUPRC and the mean PR curves over the replicates, in one row
+with its key.
 
-    python -m figures.citeseq  # from reproducibility/, a few seconds; needs citeseq's results
+    python -m figures.citeseq  # from reproducibility/, a few seconds; needs the citeseq results
 """
 
 import matplotlib.pyplot as plt

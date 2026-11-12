@@ -1,11 +1,9 @@
-"""Supplementary Fig 4: the kidney design, assembled from the arm's existing figures.
+"""Supplementary Fig 4: the kidney design, assembled from the two panels of kidney.capsule_qc.
 
-a, b: capsule_qc's two panels (kidney.capsule_qc): the capsule sizes split at the median, and the DEGs each
-method calls at full depth as the smallest capsules are removed, with its method key.
-Each is drawn by its own drawing code from the saved results, at the size it prints at; a change to a panel
-belongs in that code.
+a: the capsule sizes, split at the median.
+b: the DEGs that each method calls at full depth as the smallest capsules are removed, with the method key.
 
-    python -m figures.suppfig4      # from reproducibility/, a few seconds; needs kidney's results and data
+    python -m figures.suppfig4      # from reproducibility/, a few seconds; needs the kidney results and data
 """
 
 import matplotlib.pyplot as plt

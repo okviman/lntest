@@ -4,11 +4,8 @@ library(mclust)
 library(tidyverse)
 library(Seurat)
 
-library(Seurat)
-
-# Paths are relative to this script's directory (citeseq/R/), which is what
-# ZILN.Rproj sets as the R working directory. The arm's committed input lives in
-# citeseq/data/; everything this chain produces goes to citeseq/results/.
+# Run from citeseq/R/ (cd citeseq/R && Rscript <script>), as the paths are relative to it.
+# The committed input is in citeseq/data/, and every output goes to citeseq/results/.
 data_dir <- "../data/"
 results_dir <- "../results/"
 # No figures are drawn in R: citeseq/plots.py draws them from the CSVs this chain writes.
@@ -17,13 +14,10 @@ dir.create(results_dir, showWarnings = FALSE, recursive = TRUE)
 
 MIN_CELLS <- 3
 
-# Was a bare filename, so this only worked if you happened to be standing in the
-# directory holding the download. It now reads from citeseq/data/, which is where
-# `python -m fetch_data --arm citeseq` puts it.
 raw_h5 <- paste0(data_dir, "sc5p_v2_hs_PBMC_10k_filtered_feature_bc_matrix.h5")
 if (!file.exists(raw_h5)) {
   stop(paste0("missing ", raw_h5, "\n",
-              "  what:   the 5' PBMC 10k filtered_feature_bc_matrix, raw input to this arm\n",
+              "  what:   the 5' PBMC 10k filtered_feature_bc_matrix, the raw CITE-seq input\n",
               "  source: run `python -m fetch_data --arm citeseq` from reproducibility/"))
 }
 seurat <- Read10X_h5(raw_h5)
@@ -51,8 +45,6 @@ pbmc10k <- subset(pbmc10k, cells = colnames(pbmc10k)[keep_cells])
 # Identify cell types.
 # Normalize ADT data using CLR.
 pbmc10k <- NormalizeData(pbmc10k, assay = "ADT", normalization.method = "CLR")
-# slot= was defunct as of SeuratObject 5.0.0; layer= is the same argument.
-# Lines 39-40 had already been migrated, this one had not.
 adt_clr_transformed <- t(GetAssayData(pbmc10k, assay = "ADT", layer = "data"))
 # Fit Gaussian mixture model to identify CD3+ and CD4++ cells.
 fit_mclust <- function(x, num_clusters) {

@@ -1,15 +1,16 @@
-"""MAST on the kidney's with-DEG spot splitting (Fig 1g,h), on the first SPLITS replicates of each p_split.
+"""MAST on kidney spot splitting with DEGs, the experiment of Fig 1g, h, on the first SPLITS replicates of each p_split.
 
-spot_split's with-DEG run (--seed 0) draws its replicate seeds as its no-DEG run does, so replicate r at each p_split is
-split r of split_null_per_split.csv with DEGs planted. Each is rebuilt from that seed by
-spot_split.create_groups_from_shape_ids and spot_split.plant_degs (q and lfc as split_degs_results.csv records them),
-after the capsule filter, and scored by spot_split.de_test_single with MAST alone, through Seurat's FindMarkers with its
-gene filters off (de_utils.run_mast_two_groups), Bonferroni. MAST takes minutes per fit, so it has SPLITS replicates
-where the other tests have 100. Each replicate's metrics go to split_degs_mast_per_split.csv and its precision at
-spot_split.RECALL_GRID to split_degs_mast_curves.csv, batch by batch; a rerun keeps the replicates already in both.
-spot_split.summarise_de summarises them into split_degs_mast_results.csv and split_degs_mast_pr_curve_data.json, in
-spot_split's formats. The figures draw the TPR and FPR and the PR curves of all four tests, the other three from
-spot_split's with-DEG results.
+The spot_split run with DEGs (--seed 0) draws its replicate seeds as the run without DEGs does. Replicate r at each
+p_split is therefore split r of split_null_per_split.csv with DEGs planted. Each replicate is rebuilt from that seed by
+spot_split.create_groups_from_shape_ids and spot_split.plant_degs (q and lfc as recorded in split_degs_results.csv),
+after the capsule filter. It is scored by spot_split.de_test_single with MAST alone, through Seurat's FindMarkers with
+its gene filters off (de_utils.run_mast_two_groups), with Bonferroni. MAST takes minutes per fit, so it has SPLITS
+replicates where the other tests have 100.
+The metrics of each replicate go to split_degs_mast_per_split.csv. Its precision at spot_split.RECALL_GRID goes to
+split_degs_mast_curves.csv. Both are written batch by batch. A rerun keeps the replicates already in both.
+spot_split.summarise_de summarises them into split_degs_mast_results.csv and split_degs_mast_pr_curve_data.json, in the
+formats of spot_split. The figures show the TPR, FPR and PR curves of all four tests, the other three from the results
+of spot_split with DEGs.
 
     python -m kidney.split_degs_mast              # from reproducibility/; about 25 minutes; needs R_HOME; resumes
     python -m kidney.split_degs_mast --plot-only  # redraw from the CSVs

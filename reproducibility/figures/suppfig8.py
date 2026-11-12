@@ -1,14 +1,14 @@
-"""Supplementary Fig 8: Abdelfattah et al. 2022 as the authors ran it, their genes ranked by the Wilcoxon AUC,
-assembled from published.abdelfattah2022's drawing code.
+"""Supplementary Fig 8: Abdelfattah et al. 2022 as run in the original study, with the genes ranked by the Wilcoxon AUC,
+assembled from the drawing code of published.abdelfattah2022.
 
-a, the NES heatmaps of their Fig. 4d pathways under the AUC ranking (their procedure, reproducing 96% of the published
-signs) and under LN, on the published figure's colour range; b, per cluster, how many of those pathways keep their call
-(FDR < 0.05) under LN, lose it, reverse it or gain one; c, MC3 over MC4 in the contrasted pathways, the AUC's and LN's
-NES side by side; d, each cluster's expressed genes against its log2 depth ratio, the AUC and LN's score; e, each
-cluster's Hallmark NES against its log2 depth ratio, every set a point over its box. The uncentred AUC lies near 0.5 for
-nearly every gene, so fgsea weights the genes almost equally and its NES are larger than under a score (Methods). Fig 2g-i
-and Extended Data Fig 5g-h are the same with the Wilcoxon's z-score. Each plot is drawn by its own drawing code from the
-saved results, at the size it prints at; a change to a plot belongs in that code.
+a, the NES heatmaps of the Fig. 4d pathways of the original study under the AUC ranking (its procedure, which
+reproduces 96% of the published signs) and under LN, on the colour range of the published figure.
+b, the number of those pathways per cluster that keep their call (FDR < 0.05) under LN, lose it, reverse it or gain one.
+c, the NES of MC3 over MC4 in the contrasted pathways under the AUC and LN, side by side.
+d, the AUC and LN's score of the expressed genes of each cluster against its log2 depth ratio.
+e, the Hallmark NES of each cluster against its log2 depth ratio, every set a point over its box.
+The uncentred AUC is near 0.5 for nearly every gene. The genes then weigh almost equally in fgsea, which makes the NES
+larger than under a score (Methods). Fig 2g-i and Extended Data Fig 5g, h are the same with the Wilcoxon z-score.
 
     python -m figures.suppfig8     # from reproducibility/, seconds; needs published/results/
 """

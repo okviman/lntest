@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Cell-type labels for both of the arm's datasets, PBMC3k and PBMC10k, from CellTypist's Immune_All_Low model with
-majority voting on log1p CP10K, mapped by MAPPING to the cell types whose curated markers config.yaml lists. A type is
-included if it has at least MIN_CELLS cells in each dataset. PBMC10k's labels are checked against its antibodies: per
-type, the share of cells with the surface phenotype PHENOTYPES expects, each antibody gated by a Gaussian mixture on
-its CLR values, as citeseq/R/pbmc10k_process.R gates CD3, CD4 and CD45RA.
+"""Cell-type labels for both clustering data sets, PBMC3k and PBMC10k, from CellTypist's Immune_All_Low model with
+majority voting on log1p CP10K.
 
-Writes each dataset's metrics/celltypes.csv, the mapping (celltype_mapping.csv) and PBMC10k's
-metrics/celltype_antibodies.csv.
+The labels are mapped by MAPPING to the cell types whose curated markers config.yaml lists. A type is included if it has
+at least MIN_CELLS cells in each data set. The PBMC10k labels are checked against the antibodies: per type, the share
+of cells with the surface phenotype that PHENOTYPES expects, each antibody gated by a Gaussian mixture on its CLR
+values, as citeseq/R/pbmc10k_process.R gates CD3, CD4 and CD45RA.
+
+Output: metrics/celltypes.csv for each data set, the mapping (celltype_mapping.csv) and metrics/celltype_antibodies.csv
+for PBMC10k.
 
     python -m clustering.celltype_labels      # from reproducibility/, under a minute; downloads the model once
 """
@@ -47,7 +49,7 @@ MAPPING = {
     'Megakaryocytes/platelets': 'Platelet',
 }
 MIN_CELLS = {'PBMC3k': 30, 'PBMC10k': 150}
-# Each type's expected surface phenotype: antibody -> positive or not. CD4 is gated in three, as the CITE-seq arm gates
+# Each type's expected surface phenotype: antibody -> positive or not. CD4 is gated in three, as citeseq/R/pbmc10k_process.R gates
 # it; positive is its top component, the T helper cells' level.
 PHENOTYPES = {
     'Naive CD4 T': {'CD3': True, 'CD4': True, 'CD8a': False},

@@ -5,10 +5,7 @@ sources:
     dest: data/pbmc3k_filtered_gene_bc_matrices.tar.gz
     sha256: 847d6ebd9a1ec9a768f2be7e40ca42cbfe75ebeb6d76a4c24167041699dc28b5
     bytes: 7621991
-    extract_to: data
-    # clustering/de.py reads the tarball directly; celltype/preprocess.py wants
-    # the unpacked data/filtered_gene_bc_matrices/hg19/, hence extract_to.
-    arms: [clustering, celltype]
+    arms: [clustering]
 
   - name: citeseq-raw
     what: >-
@@ -18,14 +15,7 @@ sources:
     dest: citeseq/data/sc5p_v2_hs_PBMC_10k_filtered_feature_bc_matrix.h5
     sha256: d82e92f73fbe01bc2b41b1aa96220617cdbad53ef5387edead67daf5f012cc96
     bytes: 29938385
-    arms: [citeseq, clustering]   # clustering: the second dataset, clustering/pbmc10k_prep.py
-
-  - name: kang2018
-    what: Kang et al. 2018 PBMC IFN-beta dataset, for the celltype arm
-    command: "import pertpy, shutil, pathlib; p = pertpy.data.kang_2018()"
-    dest: data/kang_2018.h5ad
-    sha256: e6a5adac64dcdeb36eaba27db49b63e0c64bb0ed4a64c6705971506b41c39830
-    arms: [celltype]
+    arms: [citeseq, clustering]   # clustering: the PBMC10k dataset, clustering/pbmc10k_prep.py
 
   - name: kidney-spatial
     what: Visium HD Human Kidney FFPE, spatial (tissue images and positions)
@@ -73,6 +63,7 @@ sources:
     sha256: 2dcff022a36483501ae918f783b5f46b12326c3e9c287f4a8972927b93ed96ca
     bytes: 2218305037
     arms: [lymphnode]
+
   - name: lymphnode-binned
     what: Visium HD Human Lymph Node FFPE, binned_outputs (2um and 16um matrices)
     url: https://cf.10xgenomics.com/samples/spatial-exp/4.0.1/Visium_HD_Human_Lymph_Node_FFPE/Visium_HD_Human_Lymph_Node_FFPE_binned_outputs.tar.gz
@@ -92,6 +83,7 @@ sources:
     sha256: c1b5461cbd795a4c222001e884ee8c1ca59ee9c81ed5f0e93893eee3cb3cc82f
     bytes: 54695287
     arms: [clustering]
+
   - name: hpa-25.1
     what: >-
       Human Protein Atlas release 25.1, proteinatlas.tsv.zip; its RNA blood cell specificity (18 immune cell types)
@@ -101,6 +93,7 @@ sources:
     sha256: ad401f8519ecdee5b67b0ad3bf28175d402d1ea0ad6c542b90fcab2bee39b470
     bytes: 7460135
     arms: [clustering]
+
   - name: monaco2019-tpm
     what: >-
       Monaco et al. 2019 sorted immune-cell bulk RNA-seq (29 populations, 4 donors), GEO GSE107011 processed TPM;

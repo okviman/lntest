@@ -1,17 +1,21 @@
-"""Extended Data Fig 5: the Abdelfattah et al. 2022 rerun beyond Fig 2, assembled from published.abdelfattah2022's
-drawing code.
+"""Extended Data Fig 5: the rerun of Abdelfattah et al. 2022 beyond Fig 2, assembled from the drawing code of
+published.abdelfattah2022.
 
-a, the myeloid cells' UMAP coloured by the paper's clusters and by counts per cell; b, each cluster's depth relative to
-the other myeloid cells; c, each cluster's variance ratio at equal mean against its |log2 depth ratio|, with its
-least-squares line, as Fig 2e's (published.abdelfattah2022 --variance); d, each cluster's DEGs (Bonferroni 0.05) under
-the Wilcoxon and LN, as b's bars; e, each test's DEGs against the cluster's number of cells, with its least-squares line
-and Spearman correlation; f, the Wilcoxon's DEGs over LN's against the cluster's |log2 depth ratio|, as c
-(published.abdelfattah2022 --calls); g, each cluster's expressed genes against its log2 depth ratio, the Wilcoxon's
-z-score (scanpy's score) and LN's score, on one y range; h, each cluster's Hallmark NES against its log2 depth ratio, every set a point
-over its box, the Wilcoxon's and LN's (MC3 against MC4 is Fig 2i; the authors' AUC is Supplementary Fig 8). The
-same figure with
-every panel and with the Wilcoxon's z or the log1p t-test in place of the AUC is figures.ed_abdelfattah's. Each plot is
-drawn by its own drawing code from the saved results, at the size it prints at; a change to a plot belongs in that code.
+a, the UMAP of the myeloid cells coloured by the clusters of the original study and by counts per cell.
+b, the depth of each cluster relative to the other myeloid cells.
+c, the variance ratio of each cluster at equal mean against its |log2 depth ratio|, with the least-squares line, as in
+Fig 2e (published.abdelfattah2022 --variance).
+d, the DEGs of each cluster (Bonferroni 0.05) under the Wilcoxon and LN, drawn as the bars of b.
+e, the DEGs of each test against the number of cells of the cluster, with the least-squares line and the Spearman
+correlation.
+f, the Wilcoxon DEGs over the LN DEGs against the |log2 depth ratio| of the cluster, as in c
+(published.abdelfattah2022 --calls).
+g, the Wilcoxon z-score (scanpy's score) and LN's score of the expressed genes of each cluster against its log2 depth
+ratio, on one y range.
+h, the Hallmark NES of each cluster against its log2 depth ratio under the Wilcoxon and LN, every set a point over its
+box.
+MC3 against MC4 is Fig 2i. The AUC ranking of the original study is Supplementary Fig 8. The same figure with every
+panel is drawn by figures.ed_abdelfattah, also with the Wilcoxon z-score or the log1p t-test in place of the AUC.
 
     python -m figures.edfig5      # from reproducibility/, seconds; needs published/results/
 """

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""
-Script to generate clustering metrics plots using precomputed metric CSV files.
+"""Plots of the metric CSVs that clustering/metrics.py writes.
 
-Signature-based metrics are produced for two signature sets, distinguished by a
-filename tag: the top-N significant genes per cluster ("top{N}") and the full set
-of significant genes per cluster ("allsig"). For each tag this script expects:
+Signature-based metrics come for two signature sets, distinguished by a filename
+tag: the top-N significant genes per cluster ("top{N}") and all significant genes
+per cluster ("allsig"). For each tag the script reads:
     - avg_jaccard_{tag}_by_resolution.csv
     - avg_recall_{tag}_by_resolution.csv
     - best_match_{tag}_by_resolution.csv
@@ -15,10 +14,7 @@ Signature-set-independent metrics:
     - avg_lfc_by_resolution.csv
     - n_sig_genes_by_resolution.csv
 
-Usage:
-    python plot_clustering_metrics.py --metrics-dir clustering/results/metrics [--config config.yaml]
-
-If config.yaml is provided, cell type marker order and method name mapping can be inferred for nicer plots.
+    python -m clustering.plots --metrics-dir clustering/results/metrics [--config clustering/config.yaml]
 """
 
 import argparse
@@ -248,8 +244,8 @@ def main():
         help='Directory containing metric CSV files (e.g. clustering/results/metrics)'
     )
     parser.add_argument(
-        '--config', type=str, required=False,
-        help='Optional YAML config file for cell type and resolution order'
+        '--config', type=str, default=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.yaml'),
+        help='The config clustering.metrics ran with (default: clustering/config.yaml)'
     )
     parser.add_argument(
         '--output-dir', type=str, default=None,
@@ -265,11 +261,10 @@ def main():
     default_fig_dir = os.path.join(os.path.dirname(os.path.normpath(metrics_dir)) or ".", "figures")
     output_dir = args.output_dir or default_fig_dir
 
-    config = load_config(args.config) if args.config else {}
+    config = load_config(args.config)
     cell_types = list(config.get('markers', {}).keys()) if 'markers' in config else None
     top_genes = config.get('top_genes', 10)
 
-    os.makedirs(output_dir, exist_ok=True)
     plot_style.use()
 
     # Signature sets to plot: top-N significant genes and all significant genes.
@@ -285,6 +280,10 @@ def main():
     print("> Loading metric summary CSVs...")
     df_lfc = _read("avg_lfc_by_resolution.csv")
     df_nsig = _read("n_sig_genes_by_resolution.csv")
+    if df_nsig is None:
+        raise SystemExit(f"No metric CSVs in {metrics_dir}. Pass the metrics/ directory clustering.metrics "
+                         f"wrote, e.g. clustering/results/metrics.")
+    os.makedirs(output_dir, exist_ok=True)
 
     resolution_keys, resolution_order, resolution_label, cluster_count = resolution_axis(metrics_dir, config)
 

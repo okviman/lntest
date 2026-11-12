@@ -8,7 +8,7 @@ from baselines import get_test_results, scanpy_sig_test
 
 
 np.random.seed(0)
-print("Recall that this is a single run --- in the submission the results are averaged over 20 runs.")
+print("A single run. The paper's figures summarise many runs.")
 print()
 
 nx = 10000

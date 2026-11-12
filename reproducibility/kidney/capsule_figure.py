@@ -1,14 +1,12 @@
-"""The glomerular capsules on the kidney H&E, and one capsule's 2 um spots split into two groups.
+"""The glomerular capsules on the kidney H&E, with the 2 um spots of one capsule split into two groups.
 
-Rebuilds RECOMB Fig 2b, which was a hand composite of a matplotlib overlay and three QuPath renders
-of unseeded splits, as two figures: capsule_overview.pdf and capsule_split_illustration.pdf. The split
-is spot_split's: per capsule, n_A ~ Binomial(n_spots, p) spots chosen at random go to group A, the rest
-to group B. A is drawn in blue and B in orange, matplotlib's first two colours.
+Output: capsule_overview.pdf and capsule_split_illustration.pdf. The split is that of spot_split: per capsule,
+n_A ~ Binomial(n_spots, p) spots chosen at random go to group A, the rest to group B. A is drawn in blue and B in
+orange, the first two colours of matplotlib.
 
     python -m kidney.capsule_figure      # from reproducibility/
 
-Needs kidney/data/ from `python -m kidney.preprocess` and the full-resolution H&E,
-`python -m fetch_data --arm kidney` (kidney-he-fullres, 4.3 GB).
+Needs kidney/data/ from `python -m kidney.preprocess`, with the full-resolution H&E (kidney-he-fullres, 4.3 GB).
 """
 
 import argparse

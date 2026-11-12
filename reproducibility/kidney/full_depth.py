@@ -1,8 +1,8 @@
-"""The full-depth negative control: capsules split at the median library size, no downsampling.
+"""The full-depth negative control: the capsules split at the median library size, without downsampling.
 
-Healthy capsules differ in depth but not in biology, so every DEG called between the deeper and the
-shallower half is a false positive. The split is umi_null's at p_sample = 1: with all 161 capsules, and
-again after removing the 20 and the 35 with the lowest total UMI, as umi_null's --n_cells_remove does.
+Healthy capsules differ in depth but not in biology, so every DEG called between the deeper and the shallower half is
+a false positive. The split is that of umi_null at p_sample = 1: first with all 161 capsules, then after removing the
+20 and the 35 capsules with the lowest total UMI, as umi_null --n_cells_remove does.
 
     python -m kidney.full_depth      # from reproducibility/, a few seconds
 """

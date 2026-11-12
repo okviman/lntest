@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """How many markers does each method find between subclusters of one annotated cell type?
 
-Each type clustering/celltype_labels.py includes with at least MIN_CELLS cells in a dataset is subclustered as
-clustering/de.py clusters (seurat_v3 HVGs on counts; CP10K, log1p and scaling on them; PCA; neighbours; Leiden at each
-of RESOLUTIONS), and each subcluster is tested against the type's other cells with the three tests as clustering/de.py
-runs them, over the genes detected in at least MIN_DETECTED of the type's cells. The types are taken as homogeneous,
-so every marker (Bonferroni-significant, positive score) counts as a false positive. Each test's statistic is also
-summarised: how often it reaches p < 0.05 on the genes whose CP10K means differ by less than NEAR, and the mean score of
-its markers and of its strongest genes, each baseline's compared with LN's in the same subcluster.
+Each type that clustering/celltype_labels.py includes, with at least MIN_CELLS cells in a data set, is subclustered as
+in clustering/de.py (seurat_v3 HVGs on counts, then CP10K, log1p and scaling, PCA, neighbours, Leiden at each of
+RESOLUTIONS). Each subcluster is tested against the other cells of the type with the three tests of clustering/de.py,
+over the genes detected in at least MIN_DETECTED of the cells of the type. The types are taken as homogeneous, so every
+marker (Bonferroni-significant, positive score) counts as a false positive. The statistic of each test is also
+summarised: how often it reaches p < 0.05 on the genes whose CP10K means differ by less than NEAR, with the mean score
+of its markers and of its strongest genes. Each baseline is compared with LN in the same subcluster.
 
     python -m clustering.subcluster_de               # from reproducibility/, minutes
     python -m clustering.subcluster_de --plot-only   # redraw from the CSVs
@@ -44,7 +44,7 @@ OUT = results_dir(__file__) / 'subclustering'
 
 
 def counts(name, cells):
-    """The raw counts of cells, over the arm's genes."""
+    """The raw counts of cells, over the dataset's genes."""
     config_path, out = dataset_paths()[name]
     with h5py.File(de_output(yaml.safe_load(open(config_path))['adata_path'], str(out)), 'r') as f:
         index = ad.io.read_elem(f['obs']).index
@@ -259,7 +259,7 @@ def draw_ratio(ax, calls, name, column, ylabel):
 
 
 def plot(summary, calls):
-    """The arm's figures: markers per subcluster by resolution and against the depth ratio; against the depth ratio,
+    """The figures: markers per subcluster by resolution and against the depth ratio; against the depth ratio,
     the share of nearly-equal-mean genes below p 0.05 and each baseline's statistic over LN's."""
     plot_style.use()
     for draw, data, stem in ((draw_by_resolution, summary, 'subcluster_markers'),
