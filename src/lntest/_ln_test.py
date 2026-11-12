@@ -236,7 +236,7 @@ def _pos_mean_var_nnz_per_gene(A):
     For strictly-positive sparse A (cells x genes), compute:
     n_plus[g]  = #positive entries (nnz per column)
     mean[g]    = mean of positive entries
-    var[g]     = population variance of positive entries (ddof=0) to match np.nanvar default
+    var[g]     = sample variance of positive entries (ddof=1), 0 where there is one
     """
     A_csc = A.tocsc()
     n_plus = np.diff(A_csc.indptr).astype(np.float64)  # faster than getnnz(axis=0)
@@ -250,10 +250,9 @@ def _pos_mean_var_nnz_per_gene(A):
 
     mask = n_plus > 0
     mean[mask] = s[mask] / n_plus[mask]
-    # population var (ddof=0): E[x^2] - (E[x])^2
-    ex2 = np.zeros_like(var)
-    ex2[mask] = ss[mask] / n_plus[mask]
-    var[mask] = ex2[mask] - mean[mask] ** 2
+    # sample var (ddof=1): (sum x^2 - n_+ mean^2) / (n_+ - 1)
+    several = n_plus > 1
+    var[several] = (ss[several] - n_plus[several] * mean[several] ** 2) / (n_plus[several] - 1)
     var[var < 0] = 0.0  # numerical guard
 
     all_zeros = ~mask
@@ -326,8 +325,10 @@ def get_LN_lfcs_sparse(
     mu_X = log2_theta_hat_X + log2_m_X
     lfc = mu_Y - mu_X
 
-    se_Y_2 = np.ones(G, dtype=np.float64)
-    se_X_2 = np.ones(G, dtype=np.float64)
+    # A group with no positive entries counts as one positive entry of 1.0
+    # (a_hat and pos_mean above), so its level term is 0, as for any single entry.
+    se_Y_2 = np.zeros(G, dtype=np.float64)
+    se_X_2 = np.zeros(G, dtype=np.float64)
 
     mY2 = np.maximum(pos_mean_Y, eps) ** 2
     mX2 = np.maximum(pos_mean_X, eps) ** 2
@@ -345,6 +346,13 @@ def get_LN_lfcs_sparse(
         statistic, p_vals = get_t_statistic(mu_Y, mu_X, se_Y, se_X, n, n_prime)
     else:
         statistic, p_vals = compute_p_vals(mu_Y, mu_X, se_Y, se_X)
+
+    # A gene detected in neither group has nothing to test. Left alone, the
+    # fallback above gives it an LFC of log2(n' / n) when the group sizes differ.
+    absent = all_zeros_Y & all_zeros_X
+    lfc[absent] = 0.0
+    statistic[absent] = 0.0
+    p_vals[absent] = 1.0
 
     # The three return flags select what comes back after (lfc, p_vals) and are
     # mutually exclusive. Setting more than one raises rather than silently
@@ -374,7 +382,7 @@ def get_LN_lfcs_sparse(
         # genes tied at inf carry no ordering.
         se_combined_sq = se_Y**2 + se_X**2
         tiny = np.finfo(float).tiny
-        log_abs = (np.log(np.abs(mu_Y - mu_X) + tiny)
+        log_abs = (np.log(np.abs(lfc) + tiny)
                    - 0.5 * np.log(se_combined_sq + tiny))
         return lfc, p_vals, statistic, log_abs
 

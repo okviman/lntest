@@ -184,6 +184,56 @@ class TestTrigamma:
             assert np.isinf(trigamma_diff(0, 100))
 
 
+class TestLevelTerm:
+    """The standard error's second term, ``log(1 + s^2 / (n+ m^2))``, with the
+    sample variance ``s^2`` over ``n+ - 1`` as the Supplement defines it."""
+
+    # One gene, four cells per group. X's two positive values are equal, so X
+    # contributes only its detection term, 1/2 - 1/4.
+    X_FLAT = sp.csr_matrix(np.array([[2.0], [2.0], [0.0], [0.0]]))
+
+    @staticmethod
+    def se(Y, X):
+        _, _, se = get_LN_lfcs_sparse(
+            sp.csr_matrix(Y), X, normalize=False, return_standard_error=True
+        )
+        return se[0]
+
+    def test_variance_divides_by_n_plus_minus_one(self):
+        # Positive values 1 and 3: mean 2, s^2 = 2 over n+ - 1 (1 over n+).
+        Y = np.array([[1.0], [3.0], [0.0], [0.0]])
+        expected = np.sqrt(0.25 + np.log(1 + 2 / (2 * 4)) + 0.25) / np.log(2)
+        assert self.se(Y, self.X_FLAT) == pytest.approx(expected, rel=FLOAT64_RTOL)
+
+    def test_single_positive_value_has_no_level_term(self):
+        Y = np.array([[5.0], [0.0], [0.0], [0.0]])
+        expected = np.sqrt(0.75 + 0.25) / np.log(2)
+        assert self.se(Y, self.X_FLAT) == pytest.approx(expected, rel=FLOAT64_RTOL)
+
+    def test_undetected_group_counts_as_one_positive_value_of_one(self):
+        undetected = get_LN_lfcs_sparse(
+            sp.csr_matrix((4, 1)), self.X_FLAT, normalize=False, return_standard_error=True
+        )
+        one = get_LN_lfcs_sparse(
+            sp.csr_matrix(np.array([[1.0], [0.0], [0.0], [0.0]])), self.X_FLAT,
+            normalize=False, return_standard_error=True,
+        )
+        np.testing.assert_array_equal(np.concatenate(undetected), np.concatenate(one))
+
+    def test_gene_absent_from_both_groups_is_not_tested(self):
+        """Unequal group sizes would otherwise give it an LFC of log2(n' / n)."""
+        rng = np.random.default_rng(13)
+        Y = rng.poisson(3.0, size=(20, 2)).astype(float)
+        X = rng.poisson(3.0, size=(2000, 2)).astype(float)
+        Y[:, 1] = 0.0
+        X[:, 1] = 0.0
+        lfc, pvals, t = get_LN_lfcs_sparse(
+            sp.csr_matrix(Y), sp.csr_matrix(X), normalize=False, return_statistic=True
+        )
+        assert (lfc[1], t[1], pvals[1]) == (0.0, 0.0, 1.0)
+        assert lfc[0] != 0.0
+
+
 class TestCalibration:
     """The property the method exists for.
 
