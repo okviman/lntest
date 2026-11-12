@@ -1,13 +1,17 @@
-"""Unnumbered, Abdelfattah et al. 2022 rerun: their Fig. 4d pathways under the authors' procedure and under LN,
-assembled from published.abdelfattah2022's drawing code; and the same figure with the Wilcoxon's z, and with the log1p
-t-test, in place of the authors' AUC ranking (ed_abdelfattah_wilcoxon_z.pdf, ed_abdelfattah_log1p.pdf).
+"""The rerun of Abdelfattah et al. 2022 with every panel, a figure outside the paper, assembled from the drawing code of
+published.abdelfattah2022.
 
-a, the myeloid cells' UMAP coloured by the paper's clusters and by counts per cell; b, each cluster's depth relative to
-the other myeloid cells; c, each cluster's expressed genes against its log2 depth ratio, the Wilcoxon AUC and LN's score;
-d, its Hallmark sets' NES against it, under both; e, the NES heatmaps of their Fig. 4d pathways, one colour bar (the
-published figure's range; the Wilcoxon's larger NES saturate); f, the pathways behind the interpretation the rerun
-contradicts, MC3 (s-Mac1) against MC4 (MDSC), under the Wilcoxon AUC ranking (the authors' procedure) and under LN. Drawn by the arm's own code
-from the saved results, at the size it prints at; a change to a panel belongs in that code.
+The Fig. 4d pathways of the original study under its procedure and under LN. The same figure is also drawn with the
+Wilcoxon z-score (ed_abdelfattah_wilcoxon_z.pdf) or the log1p t-test (ed_abdelfattah_log1p.pdf) in place of the AUC
+ranking of the original study.
+a, the UMAP of the myeloid cells coloured by the clusters of the original study and by counts per cell.
+b, the depth of each cluster relative to the other myeloid cells.
+c, the Wilcoxon AUC and LN's score of the expressed genes of each cluster against its log2 depth ratio.
+d, the NES of the Hallmark sets of each cluster against its log2 depth ratio, under both rankings.
+e, the NES heatmaps of the Fig. 4d pathways, with one colour bar on the range of the published figure, where the larger
+NES of the Wilcoxon saturate.
+f, the pathways behind the interpretation that the rerun contradicts, MC3 (s-Mac1) against MC4 (MDSC), under the
+Wilcoxon AUC ranking (the procedure of the original study) and under LN.
 
     python -m figures.ed_abdelfattah      # from reproducibility/, seconds; needs published/results/; all three
 """
@@ -32,7 +36,7 @@ UMAP = dict(left=0.3, bottom=0.25, side=1.2, cbar=0.08, cbar_gap=0.06)
 
 
 def tables():
-    """The arm's saved tables, as published.abdelfattah2022 reads them."""
+    """The saved tables of published.abdelfattah2022, as published.abdelfattah2022 reads them."""
     return ab.tables()
 
 

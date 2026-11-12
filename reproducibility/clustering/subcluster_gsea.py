@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Subcluster states read through GSEA: which of each method's pathway calls survive matching the two sides' depth?
+"""Subcluster states read through GSEA: which pathway calls of each method survive matching the depth of the two sides?
 
-The splits are clustering/subcluster_recursive.py's, made again the same way. Each child against its siblings, when both
-have at least MIN_CELLS cells (a two-way split once, through its first child), is tested with the three tests as
-clustering/de.py runs them, and each method's full score ranking goes through gseapy prerank on the Hallmark sets as
-clustering/concordance.py runs it. Then the deeper side's counts are binomially thinned by the ratio of the two sides'
-median depths, CP10K and log1p CP10K are recomputed, and tests and prerank rerun, once per seed in SEEDS. A set is
-called at FDR q < FDR; after matching, when called with the same sign under most seeds. Per comparison and method: the
-sets called as observed and after matching, the share of observed calls that survive, the share whose NES has the sign
-of the depth gap, and the top TOP markers' overlap with LN's. Comparisons whose depth ratio is at least GAP either way
-are pooled apart from the others.
+The splits are those of clustering/subcluster_recursive.py, made again the same way. Each child against its siblings,
+when both have at least MIN_CELLS cells (a two-way split once, through its first child), is tested with the three tests
+of clustering/de.py. The full score ranking of each method goes through gseapy prerank on the Hallmark sets, as in
+clustering/concordance.py. The counts of the deeper side are then binomially thinned by the ratio of the median depths
+of the two sides. CP10K and log1p CP10K are recomputed. The tests and prerank then run again, once per seed in SEEDS.
+A set is called at FDR q < FDR. After matching, a set is called when it is called with the same sign under most seeds.
+Per comparison and method: the sets called as observed and after matching, the share of observed calls that survive,
+the share whose NES has the sign of the depth gap and the overlap of the top TOP markers with those of LN. Comparisons
+whose depth ratio is at least GAP either way are pooled apart from the others.
 
     python -m clustering.subcluster_gsea               # from reproducibility/, about 10 minutes
     python -m clustering.subcluster_gsea --plot-only   # redraw from the CSVs
@@ -63,7 +63,7 @@ def comparisons(name, adata):
 
 
 def tested(x, own, keep, genes):
-    """The child against its siblings from counts x (cells by the arm's genes): CP10K and log1p CP10K over all genes,
+    """The child against its siblings from counts x (cells by the dataset's genes): CP10K and log1p CP10K over all genes,
     the three tests over the genes at positions keep, named genes; the child's result per method."""
     total = np.asarray(x.sum(1)).ravel()
     cp = sp.csr_matrix(sp.diags(1e4 / total) @ x, dtype=np.float32)[:, keep]
@@ -204,7 +204,7 @@ def draw_survival(ax, summary, methods=METHODS):
 
 
 def plot(summary, sets, comp):
-    """The arm's figures, one plot each: per method, the depth-gapped calls' NES as observed against depth matched;
+    """The figures, one plot each: per method, the depth-gapped calls' NES as observed against depth matched;
     and the survival of calls without and with a depth gap."""
     plot_style.use()
     for m in METHODS:

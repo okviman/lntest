@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""
-Script to analyze single-cell RNA-seq data across multiple Leiden resolutions.
+"""Leiden clustering at several resolutions, with each cluster tested against the rest by every method.
 
-This script performs differential expression analysis using both LN test and 
-Scanpy's t-test (and wilcoxon) across multiple clustering resolutions, saving all
-DE results to the updated AnnData file.
+The clustering uses the highly variable genes (CP10K, log1p, scaling, PCA, neighbours, Leiden at each resolution of the
+config). Every cluster is then tested against all other cells on all genes: LN's t-test on CP10K and scanpy's t-test
+and tie-corrected Wilcoxon on log1p CP10K, all with Bonferroni. MAST runs too unless --skip-mast. The output,
+<input name>_DE.h5ad in --output-dir, is read by the other clustering scripts.
 
-Usage:
-    python run_multiresolution_de.py --config config.yaml [--output-dir clustering/results/]
+    python -m clustering.de --config clustering/config.yaml --output-dir clustering/results --skip-mast
 """
 
 import argparse
@@ -108,7 +107,7 @@ def load_input_adata(adata_path):
     adata = sc.read_10x_mtx(mtx_dir, var_names="gene_symbols", cache=False)
     adata.var_names_make_unique()
 
-    # Standard PBMC3k QC (matches the tutorial used to build pbmcs3k_pre.h5ad)
+    # The QC of the Seurat and scanpy PBMC3k tutorials
     sc.pp.filter_cells(adata, min_genes=200)
     sc.pp.filter_genes(adata, min_cells=3)
     mito_genes = adata.var_names.str.startswith("MT-")
@@ -280,7 +279,7 @@ def run_mast_de(
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Analyze single-cell RNA-seq data across multiple Leiden resolutions'
+        description='Leiden clustering at several resolutions, and every test of each cluster against the rest'
     )
     parser.add_argument(
         '--config',
@@ -414,8 +413,8 @@ def main():
         adata_full.layers['log1p_norm'] = tocsr_if_not_sparse(temp.X)
         del temp
 
-    # Run all DE tests once upfront for all resolutions (using ALL GENES! and transferred cluster assignments)
-    print("Running differential expression tests for all resolutions (USE ALL GENES)...")
+    # Every test at every resolution, on all genes, with the clusters found on the HVGs
+    print("Running differential expression tests for all resolutions, on all genes...")
     for key_name in resolution_keys:
         # Print the number of clusters in each resolution before running DE
         n_clusters = adata_full.obs[key_name].nunique(dropna=True)
@@ -423,8 +422,8 @@ def main():
         # Run LN test (on norm_counts layer, all genes)
         ln_key = f"ln_{key_name}"
         print(f"    Running LN test for '{key_name}' ...")
+        # Bonferroni for every method, passed explicitly
         rank_genes_groups_ln(adata_full, key_name, sparse=True, key_added=ln_key, layer="norm_counts", corr_method="bonferroni")
-        # Benjamini-Hochberg for every method, passed explicitly rather than left to each default.
         # Run Scanpy t-test (on log1p_norm layer, all genes)
         t_test_key = f"t_test_{key_name}"
         print(f"    Running Scanpy t-test for '{key_name}' ...")

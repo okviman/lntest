@@ -1,38 +1,25 @@
 #!/usr/bin/env python3
-"""
-Parallelized sub-sampling effect analysis using shared memory and nested sampling.
+"""Lymph node, both compartments thinned alike: the calls of each test against the pseudo-bulk markers as cells lose 2 um spots.
 
-Uses a nested Binomial sampling design: the gene set is fixed at the lowest
-valid fraction (p_base), and spot selections are extended to higher fractions
-using conditional Bernoulli draws. This ensures the gene universe is identical
-across all p values for a given replicate, making metrics directly comparable.
+Every 2 um spot is kept independently with probability p. Within a replicate the draws are nested: the spots kept at
+the lowest valid fraction p_base are extended to each higher p by conditional Bernoulli draws, so the cells and genes
+tested stay comparable across p. The kept spots are summed per cell. LN's t-test, the log1p t-test, the Wilcoxon and
+MAST (de_utils) test the B-cell follicles (Cluster-3) against the T-cell zone (Cluster-1). The significant up genes of
+each compartment are scored against its markers in the pseudo-bulk reference that the config names
+(lymphnode/pseudobulk_reference.py). lymphnode.depth_imbalance and depth_gsea reuse its cells, filters and tests.
 
-Uses de_utils for DE (LN, t-test, wilcoxon, MAST) and evaluation_utils for
-all metrics (precision, recall, AUPRC, precision@k, avg |LFC|, n_sig_genes).
-Each cluster's significant upregulated genes are scored against its markers in
-the pseudo-bulk reference the config names (lymphnode/pseudobulk_reference.py).
-Input adata.X = raw counts (spot-level); after subsampling we aggregate to
-cell-level counts and run the same analysis as the celltype pipeline.
+    python -m lymphnode.subsampling --config lymphnode/config_50rep.yaml --output-dir lymphnode/results --skip-mast
+    python -m lymphnode.subsampling --config lymphnode/config_50rep.yaml --output-dir lymphnode/results --plot-only
 
-Usage:
-    python run_subsampling_analysis_parallel.py --config config.yaml [--output-dir lymphnode/results/] [--n-workers 8]
-
-Optional in config (defaults used if omitted):
-  - min_cells_per_gene (int): genes must be expressed in at least that many cells in
-    *each* group to be kept; otherwise dropped before DE.
-  - min_spots_per_cell (int, default 5): cells with fewer than this many 2um spots after
-    subsampling are excluded.
-  - min_counts_after_subsampling (int, default 20): cells whose chosen 2um spots have total
-    UMI count less than this are excluded (not included in the aggregated matrix).
-  - min_genes (int, default 500): minimum number of genes after filtering for a base
-    sampling to be considered valid.
+Optional in the config (defaults if omitted):
+  - min_cells_per_gene: genes must be detected in at least that many cells of each group.
+  - min_spots_per_cell (default 5): cells with fewer 2 um spots after thinning are excluded.
+  - min_counts_after_subsampling (default 20): cells with fewer counts after thinning are excluded.
+  - min_genes (default 500): the fewest genes a base sampling needs to be valid.
 """
 
 import os
-import sys
 
-# Run from reproducibility/ as `python -m lymphnode.subsampling`, which puts that
-# directory on sys.path -- no path manipulation needed.
 # Force single-threaded BLAS/OpenMP BEFORE any numeric library imports
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -61,7 +48,6 @@ import plot_style
 from method_colors import MEDIANPROPS, method_color, method_draw_order, method_label, method_order
 import pandas as pd
 import scanpy as sc
-import seaborn as sns
 import matplotlib.pyplot as plt
 from scipy import sparse
 import json
@@ -902,7 +888,7 @@ def main():
     parser.add_argument("--config", type=str, required=True, help="Path to YAML config")
     parser.add_argument("--output-dir", type=str, default=str(results_dir(__file__)), help="Output directory (default: lymphnode/results)")
     parser.add_argument("--n-workers", type=int, default=8, help="Number of parallel workers")
-    parser.add_argument("--skip-mast", action="store_true", help="Skip MAST DE (faster runs for debugging)")
+    parser.add_argument("--skip-mast", action="store_true", help="Skip MAST, which takes most of the run time")
     parser.add_argument("--order-only", action="store_true", help="Use only rank order for AUPR (replace scores with ranks)")
     parser.add_argument("--plot-only", action="store_true",
                         help="Redraw the figures from OUTPUT_DIR/subsampling_results_raw.csv without re-running")

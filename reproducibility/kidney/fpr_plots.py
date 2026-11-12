@@ -1,5 +1,9 @@
+"""FPR against p from the results CSV of a kidney null run, on a linear and on a log axis.
+
+    python -m kidney.fpr_plots --csv_file kidney/results/split_null_results.csv --output kidney/results/split_null_fpr.pdf --split
+"""
+
 import os
-import sys
 import numpy as np
 import pandas as pd
 
@@ -45,7 +49,7 @@ def plot_fpr_results(csv_file, output_file, aspect_ratio=None, p_label=SAMPLING,
     """
     df = pd.read_csv(require_input(
         csv_file,
-        what="this arm's FPR-vs-subsampling results",
+        what="the FPR results of a kidney null run",
         source="run `python -m kidney.umi_null` first",
     ))
 
@@ -78,7 +82,7 @@ def plot_fpr_log(csv_file, output_file, p_label=SAMPLING, odds=False):
     """
     df = pd.read_csv(require_input(
         csv_file,
-        what="this arm's FPR-vs-subsampling results",
+        what="the FPR results of a kidney null run",
         source="run `python -m kidney.umi_null` first",
     ))
     fig, ax = plt.subplots(1, 1, figsize=plot_style.figsize())

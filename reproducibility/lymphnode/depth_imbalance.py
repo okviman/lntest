@@ -1,26 +1,28 @@
 #!/usr/bin/env python3
-"""Lymph node, the T-cell zone's reads thinned and the B-cell follicles whole: as the T-cell zone's variance grows at
-equal means, do the baselines' calls leave the pseudo-bulk markers, and LN's not?
+"""Lymph node, with the reads of the T-cell zone thinned and the B-cell follicles whole: as the variance of the T-cell
+zone grows at equal means, do the baseline calls leave the pseudo-bulk markers while the LN calls stay?
 
-The follow-up to kidney/spot_split.py, where giving one half of a homogeneous population fewer 2 um spots opened a
-variance difference at equal means. Here the groups are the B-cell follicles (Cluster-3) and the T-cell zone (Cluster-1),
-the truth is each compartment's markers in the pseudo-bulk reference, and every read of the T-cell zone's 2 um spots is
-kept with probability p in FRACTIONS (binomial thinning of each spot's counts; every spot kept, the follicles' reads all
-kept), REPLICATES times per p, plus the unthinned data once. A T cell covers a median of 7 spots, so dropping spots would
-shrink cells under the spot filter; dropping reads only lowers their counts, though below p 0.5 the 20-count filter
-removes T cells (about 30% at 0.4, 52% at 0.3, 80% at 0.2), the deeper ones surviving. Cells, genes and the three tests are as lymphnode/
-subsampling.py runs them (config_50rep.yaml: cells with at least min_spots_per_cell spots and
-min_counts_after_subsampling counts, genes detected in at least min_cells_per_gene cells of each compartment;
-Bonferroni, the Wilcoxon tie-corrected, LN on counts, which it normalises itself), and each compartment's upregulated
-calls and full ranking are scored against its markers. Readouts per task, method and compartment: the median counts per
-cell of each compartment and their ratio, the variance gap between them (clustering/multires_gaps.py's, on CP10K), the
-calls, precision, recall and AUPRC, and for LN also the AUPRC of its marker rule's ranking (auprc_marker_rule);
-summarised per condition, with the calls outside the reference markers.
+This follows kidney/spot_split.py, where giving one half of a homogeneous population fewer 2 um spots opened a
+variance difference at equal means. The groups are the B-cell follicles (Cluster-3) and the T-cell zone (Cluster-1).
+The truth is the markers of each compartment in the pseudo-bulk reference. Every read of the 2 um spots of the T-cell
+zone is kept with probability p in FRACTIONS (binomial thinning of the counts of each spot, every spot kept), REPLICATES
+times per p, plus the unthinned data once. Every read of the follicles is kept.
+A T cell covers a median of 7 spots, so dropping spots would shrink cells below the spot filter. Dropping reads only
+lowers their counts, but below p = 0.5 the 20-count filter removes T cells (about 30% at 0.4, 52% at 0.3 and 80% at
+0.2), the deeper ones surviving.
+Cells, genes and the three tests are as in lymphnode/subsampling.py (config_50rep.yaml): cells with at least
+min_spots_per_cell spots and min_counts_after_subsampling counts, genes detected in at least min_cells_per_gene cells
+of each compartment, Bonferroni, the tie-corrected Wilcoxon, LN on counts. The up calls and the full ranking of each
+compartment are scored against its markers.
+Readouts per task, method and compartment: the median counts per cell of each compartment and their ratio, the
+variance gap between them (that of clustering/multires_gaps.py, on CP10K), the calls, precision, recall and AUPRC. For
+LN also the AUPRC of the ranking of its marker rule (auprc_marker_rule). The readouts are summarised per condition,
+with the calls outside the reference markers.
 
-With --thin bins, the spots themselves are subsampled instead, as the podocyte split does: every 2 um spot of the T-cell
-zone is kept with probability p, and a T cell left under the filters (fewer than min_spots_per_cell spots or
-min_counts_after_subsampling reads) gets dropped spots back, in random order, until it passes or has them all; below
-p 0.4 most T cells sit at that floor.
+With --thin bins, the spots themselves are subsampled instead, as in kidney spot splitting. Every 2 um spot of the
+T-cell zone is kept with probability p. A T cell left below the filters (fewer than min_spots_per_cell spots or
+min_counts_after_subsampling reads) gets dropped spots back, in random order, until it passes or has them all. Below
+p = 0.4 most T cells sit at that floor.
 
     python -m lymphnode.depth_imbalance --config lymphnode/config_50rep.yaml               # from reproducibility/, minutes
     python -m lymphnode.depth_imbalance --config lymphnode/config_50rep.yaml --thin bins   # the spot version
@@ -55,7 +57,7 @@ T_ZONE, B_FOLLICLES = 'Cluster-1', 'Cluster-3'
 FRACTIONS = {'reads': (0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9), 'bins': (0.4, 0.5, 0.6, 0.7, 0.8, 0.9)}
 REPLICATES = 20
 NAMES = {T_ZONE: 'T-cell zone', B_FOLLICLES: 'B-cell follicles'}
-KEYS = {'LN test': 'ln_test', 't-test': 't_test', 'Wilcoxon': 'wilcoxon'}   # method labels as the arm's results name them
+KEYS = {'LN test': 'ln_test', 't-test': 't_test', 'Wilcoxon': 'wilcoxon'}   # method labels as lymphnode.subsampling's results name them
 SEED = {None: 0, T_ZONE: 1, B_FOLLICLES: 3}
 OUT = results_dir(__file__) / 'depth_imbalance'
 OUTS = {'reads': OUT, 'bins': results_dir(__file__) / 'depth_imbalance_bins'}
@@ -336,7 +338,7 @@ def save_with_key(fig, stem, out):
 
 
 def plot(wide, df, thin='reads'):
-    """The arm's figures, one plot each: each compartment's recall, precision and the recall gap against the ratio;
+    """The figures, one plot each: each compartment's recall, precision and the recall gap against the ratio;
     each compartment's AUPRC and the calls outside the reference markers per condition."""
     plot_style.use()
     out = OUTS[thin]

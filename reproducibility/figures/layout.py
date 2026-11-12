@@ -1,12 +1,16 @@
-"""Shared layout of the assembled figures: 183 mm wide (Extended Data 180 mm), at most 170 mm tall, every panel placed at 100%, letters laid over them.
+"""Shared layout of the assembled figures.
 
-Panels are drawn at the size they print at, so their text prints at the size it was drawn: TEXT for axis
-labels, ticks and titles, plot_style's SMALL for legends. Axes are placed in inches (axes_at), so panels in
-different files line up. assemble() places each row's panel PDFs left to right, top-aligned, the rows top to
-bottom, and stops if a row is wider than the figure.
+Main figures are 183 mm wide and Extended Data figures 180 mm, at most 170 mm tall. Every panel is drawn at its printed
+size and placed at 100%, so its text prints at the size it was drawn: TEXT for axis labels, ticks and titles,
+plot_style.SMALL for legends. Axes are placed in inches (axes_at), so panels in different files line up. assemble()
+places the panel PDFs of each row left to right and top-aligned, with the rows top to bottom. It stops if a row is wider
+than the figure. Panel letters are drawn over the panels.
 
-Outputs go to figures/results/: paper/ the figures the paper prints (PAPER), other/ every other assembled figure,
-panels/ the parts they are assembled from.
+Each panel is drawn by the code of its experiment from saved results, so a change to a panel is made there. The figure
+scripts only place panels.
+
+Output: figures/results/paper/ for the figures the paper prints (PAPER), figures/results/other/ for the other assembled
+figures, figures/results/panels/ for the parts they are assembled from.
 """
 
 import io

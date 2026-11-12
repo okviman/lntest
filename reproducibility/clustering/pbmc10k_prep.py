@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
-"""PBMC10k's RNA as this arm's input: the second, deeper PBMC dataset for clustering/heldout_fp.py.
+"""The RNA of PBMC10k as the second clustering data set, deeper than PBMC3k.
 
-Reads the CITE-seq arm's 5' PBMC 10k matrix, keeps the cells that arm keeps (200-6,000 genes, at most 10%
-mitochondrial counts, at least 500 antibody counts; citeseq/R/pbmc10k_process.R), removes the doublets scanpy's
-Scrublet predicts with its defaults, and writes the remaining cells' gene-expression counts to data/pbmc10k_rna.h5ad,
-which config_pbmc10k.yaml names; each QC-passing cell's doublet score and call go to results/pbmc10k/doublets.csv.
+The 5' PBMC 10k matrix of citeseq/ is read. The cells that citeseq/R/pbmc10k_process.R keeps are kept (200-6,000 genes,
+at most 10% mitochondrial counts, at least 500 antibody counts). The doublets that scanpy's Scrublet predicts with its
+defaults are removed. The gene-expression counts of the remaining cells go to data/pbmc10k_rna.h5ad, which
+config_pbmc10k.yaml names. The doublet score and call of each cell that passes QC go to results/pbmc10k/doublets.csv.
 clustering/de.py then clusters and tests it as it does PBMC3k.
 
     python -m fetch_data --arm citeseq             # the input, if missing
     python -m clustering.pbmc10k_prep              # from reproducibility/, seconds
-    python -m clustering.de --config clustering/config_pbmc10k.yaml --output-dir clustering/results/pbmc10k --skip-mast
-    python -m clustering.heldout_fp --config clustering/config_pbmc10k.yaml --output-dir clustering/results/pbmc10k
 """
 
 from pathlib import Path

@@ -1,10 +1,10 @@
 """Capsule QC: why the kidney runs drop the 35 capsules with the lowest total UMI.
 
-Left, the distribution of capsule sizes, split at the median into the shallower and the deeper half, as
-kidney/full_depth.py splits them. Right, the DEGs each method calls on that split at full depth as the
-smallest capsules are removed one by one: the filter is meant to leave every method calling none.
+Left, the distribution of capsule sizes, split at the median into the shallower and the deeper half, as in
+kidney/full_depth.py. Right, the DEGs that each method calls on that split at full depth as the smallest capsules are
+removed one by one. The filter is meant to leave every method calling none.
 
-    python -m kidney.capsule_qc      # from reproducibility/, a few minutes
+    python -m kidney.capsule_qc      # from reproducibility/
 """
 
 import matplotlib.pyplot as plt

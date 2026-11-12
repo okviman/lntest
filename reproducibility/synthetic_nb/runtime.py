@@ -1,20 +1,21 @@
-"""How each test's runtime scales with the number of cells, on synthetic NB counts.
+"""How the runtime of each test scales with the number of cells, on synthetic NB counts.
 
-Both groups drawn alike, 2,000 genes of mean 5 and variance 2μ (synthetic_nb.null.draw_nb), seed 0; total cells CELLS, half
-per group. Each test timed from raw counts to Bonferroni-adjusted p-values as synthetic_nb.null runs it: LN's t-test
-(lntest.get_LN_lfcs), the log1p t-test and the Wilcoxon (baselines.scanpy_sig_test); MAST (Seurat's FindMarkers, gene
-filters off, Y against X; de_utils.run_mast_two_groups) up to MAST_MAX cells. The median wall time of REPEATS runs, one
-thread for the numerical libraries. Times depend on the machine, which is recorded with them; they are not
-byte-reproducible.
+Both groups are drawn alike: 2,000 genes of mean 5 and variance 2μ (synthetic_nb.null.draw_nb), seed 0, CELLS cells in
+total, half per group. Each test is timed from raw counts to Bonferroni-adjusted p-values as in synthetic_nb.null:
+LN's t-test (lntest.get_LN_lfcs), the log1p t-test and the Wilcoxon (baselines.scanpy_sig_test), MAST (Seurat's
+FindMarkers with its gene filters off, Y against X, de_utils.run_mast_two_groups) up to MAST_MAX cells. The median wall
+time of REPEATS runs, on one thread for the numerical libraries. Times depend on the machine, which is recorded with
+them. They are not byte-reproducible.
 
-With --sparse, realistic sparse counts instead: gene means log-normal (SPARSE_MEANS), NB with Var = μ + SPARSE_PHI μ², stored
-sparse, and each test as a user runs it on a sparse AnnData of counts: LN by lntest.rank_genes_groups_ln on the counts,
-the log1p t-test and the Wilcoxon by scanpy's normalize_total, log1p and rank_genes_groups (normalisation timed with
-them), Bonferroni, Y against X; MAST as above. Written to runtime_sparse.csv with the realised share of zeros.
+With --sparse, sparse counts instead: log-normal gene means (SPARSE_MEANS), NB with Var = μ + SPARSE_PHI μ², stored
+sparse. Each test runs as a user runs it on a sparse AnnData of counts: LN through lntest.rank_genes_groups_ln on the
+counts, the log1p t-test and the Wilcoxon through scanpy's normalize_total, log1p and rank_genes_groups (with the
+normalisation timed), Bonferroni, Y against X. MAST as above. The results go to runtime_sparse.csv with the share of
+zeros.
 
-    python -m synthetic_nb.runtime              # from reproducibility/; about 8 minutes; needs R_HOME for MAST
-    python -m synthetic_nb.runtime --sparse     # the sparse version; about 5 minutes
-    python -m synthetic_nb.runtime --plot-only  # redraw from the CSV (with --sparse, the sparse one's)
+    python -m synthetic_nb.runtime --sparse     # from reproducibility/; about 45 minutes, most of it MAST; needs R_HOME
+    python -m synthetic_nb.runtime              # dense counts
+    python -m synthetic_nb.runtime --plot-only  # redraw from the CSV (with --sparse, the sparse one)
 """
 
 import os

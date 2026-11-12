@@ -9,10 +9,9 @@ from method_colors import MEDIANPROPS, method_color, method_label, method_order,
 
 df = pd.read_csv(require_input(
     results_dir(__file__, create=False) / "nde_mu10" / "d1_vs_d2_01_nde_mu_10.csv",
-    what="arm B's per-replicate metrics, sparse setting (non_de_mu=10)",
+    what="synthetic_nb.de_test's per-replicate metrics, sparse setting (non_de_mu=10)",
     source="run `python -m synthetic_nb.de_test` from reproducibility/ first",
 ))
-# df2 = pd.read_csv("./simul/test/NB_test_results/nde_mu100_be/results.csv")
 
 df.drop(columns=['recall'], inplace=True)
 

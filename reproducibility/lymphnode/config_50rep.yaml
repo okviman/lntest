@@ -1,13 +1,7 @@
-# Config: 50 replicates, scored against the pseudo-bulk PyDESeq2 reference that
-# lymphnode/pseudobulk_reference.py writes to `reference` from these cells at full depth.
-# Other options copied from config_subsampling_test_10rep.yaml.
-# Was an absolute path on Hosein's machine:
-#   /home/hosein.toosi/ovary/podocytes/data/vishd-cluster1-cluster3-2um-with-clusters-subsampled.h5ad
-# Now arm-relative. The file is not committed -- it is the Visium HD lymph node
-# matrix behind fig:visium_jaccard and fig:visium_gsea in the Nature submission.
-# It is public and rebuildable, and this is exactly the path the rebuild writes:
-#     bash lymphnode/reproduce_vishd_cluster1_cluster3.sh
-# Read the header of that script first; it downloads 4.4 GB and step 2 takes hours.
+# The lymph node experiments: 50 replicates, scored against the pseudo-bulk PyDESeq2 reference
+# that lymphnode/pseudobulk_reference.py writes to `reference` from these cells at full depth.
+# adata_path is written by lymphnode/reproduce_vishd_cluster1_cluster3.sh, which downloads
+# 4.4 GB and takes several hours.
 adata_path: "lymphnode/data/vishd-cluster1-cluster3-2um-with-clusters-subsampled.h5ad"
 min_cells_per_gene: 2
 # Cells with fewer than this many 2um spots after subsampling are excluded (default 5)

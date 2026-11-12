@@ -1,12 +1,13 @@
-"""MAST on a null in which only some genes change: each test's FPR on genes of equal mean and unequal variance.
+"""MAST on a null in which only some genes change: the FPR of each test on genes of equal mean and unequal variance.
 
-Each condition: 1,000 + 1,000 cells, 1,500 genes of mean μ; X's genes all of variance Var(X); in Y, the first SHIFTED
-genes of variance ratio × Var(X) and the rest of Var(X), so the two groups' per-cell detection rates barely differ (when
-every gene changes, as in Fig 1c's null, MAST's detection-rate covariate absorbs the group effect). μ = 5 and 50,
-Var(X) = μ and 4μ, Var(Y)/Var(X) = 1, 2, 4, 8, 16 and 32, seed 1. All four tests on the same draws: LN's t-test, the
-log1p t-test and the Wilcoxon as synthetic_nb.null runs them, MAST through Seurat's FindMarkers with its gene
-filters off (de_utils.run_mast_two_groups: the hurdle LRT on log1p CP10K, ~ group); Bonferroni over every gene. The FPR over the shifted genes,
-and over the others as a check.
+Each condition has 1,000 + 1,000 cells and 1,500 genes of mean μ. All genes of X have variance Var(X). In Y, the first
+SHIFTED genes have variance ratio × Var(X) and the rest Var(X), so the detection rates of the cells barely differ
+between the groups. When every gene changes, as in the null of Fig 1c, the detection-rate covariate of MAST absorbs
+the group effect.
+μ = 5 and 50, Var(X) = μ and 4μ, Var(Y)/Var(X) = 1, 2, 4, 8, 16 and 32, seed 1. All four tests run on the same draws:
+LN's t-test, the log1p t-test and the Wilcoxon as in synthetic_nb.null, MAST through Seurat's FindMarkers with its gene
+filters off (de_utils.run_mast_two_groups: the hurdle LRT on log1p CP10K, ~ group). Bonferroni over every gene. The FPR
+is computed over the shifted genes. The FPR over the other genes is a check.
 
     python -m synthetic_nb.null_mast              # from reproducibility/; about 7 minutes; needs R_HOME
     python -m synthetic_nb.null_mast --plot-only  # redraw from the CSV

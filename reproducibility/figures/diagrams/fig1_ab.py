@@ -1,14 +1,13 @@
 """Fig 1a,b at print size: full width (7.2 in), about a third of a page.
 
-a: UMI counts -> clusters -> for each cluster, a DE test (A vs rest) -> markers per method, each gene with the
-   test's ranking score, and for LN also its detection part (boxed, as in b); loop back.
-b: what the test does for one non-DE gene g: LN's t-test vs the log1p t-test.
-Numbers come from numbers(): mu = 5, Var(X) = 10, Var(Y) = 50, n = 1000 per group, seed 0.
-Gene names are placeholders. Text is 5.5-7 pt at print size.
+a: UMI counts -> clusters -> a DE test of each cluster against the rest -> markers per method, each gene with the
+   ranking score of the test (for LN also its detection part, boxed as in b), looping back.
+b: the steps of LN's t-test and of the log1p t-test for one non-DE gene g.
+The numbers come from numbers(): mu = 5, Var(X) = 10, Var(Y) = 50, n = 1000 per group, seed 0. Gene names are
+placeholders. Text is 5.5-7 pt at print size.
 
-Writes figures/diagrams/fig1a.pdf and fig1b.pdf, which figures.fig1 places on the page, and PNG previews with the two
-panels together in figures/results/panels/. The PDFs are committed, so assembling Fig 1 does not need this script's
-LaTeX (with dvipng) and pdftoppm.
+Output: figures/diagrams/fig1a.pdf and fig1b.pdf, placed on the page by figures.fig1. PNG previews of both panels go
+to figures/results/panels/. The PDFs are committed, so assembling Fig 1 needs neither LaTeX (with dvipng) nor pdftoppm.
 
     python -m figures.diagrams.fig1_ab      # from reproducibility/
 """

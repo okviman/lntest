@@ -1,34 +1,14 @@
 """Tests for ``rank_genes_groups_ln``, the scanpy-shaped entry point.
 
-``tests/test_lntest.py`` pins the estimator. This file pins the *wrapper*: the
-function a scanpy user actually calls, and the one a scanpy integration would
-dispatch to. Nothing here re-tests the statistics -- it tests the contract laid
-over them.
+``tests/test_lntest.py`` tests the estimator. This file tests what
+``rank_genes_groups_ln`` stores: the fields, the ranking, the reference, the
+standard error and the correction. It needs anndata and pandas, which are test
+dependencies only. Without them, it is skipped.
 
-Building the objects the wrapper is called with needs anndata and pandas, which
-are test dependencies rather than runtime ones -- the wrapper is duck-typed and
-imports neither. The whole module skips when they are absent.
-
-Three things are worth knowing about what is asserted below.
-
-* **The standard error is derived, not computed twice.** The wrapper reports
-  ``lfc_se = |lfc / statistic|`` rather than calling the estimator again, which
-  would double the cost of every run. That is exact, not an approximation:
-  ``get_t_statistic`` sets ``statistic = (mu_Y - mu_X) / sqrt(se_Y^2 + se_X^2)``
-  and ``lfc = mu_Y - mu_X``, so the division recovers the pooled SE. If the
-  statistic ever stops being that ratio, ``test_se_reconstructs_the_statistic``
-  is what notices.
-
-* **``trigamma`` must not move the log-fold change.** It enters only through
-  ``se_Y_1``/``se_X_1``, so switching it changes the SE, the statistic and the
-  p-values while leaving the LFC bit-identical. That separation is the whole
-  reason the flag is safe to carry while the question behind it is open, and it
-  is unasserted anywhere else.
-
-* **The wrapper always applies CP10K**, despite its docstring saying it takes
-  normalised data. That is harmless because CP10K is idempotent -- a matrix
-  whose rows already sum to 1e4 is rescaled by 1.0 -- but it is behaviour, so
-  it is pinned rather than left to be rediscovered.
+``lfc_se`` is ``|lfc / statistic|``. This is exact, because ``get_t_statistic``
+sets ``statistic = (mu_Y - mu_X) / sqrt(se_Y^2 + se_X^2)`` and
+``lfc = mu_Y - mu_X``. Each cell is scaled to 10,000 first, which leaves CP10K
+input unchanged.
 """
 from __future__ import annotations
 
@@ -200,7 +180,7 @@ class TestRanking:
 
 
 class TestLfcStandardError:
-    """``lfc_se`` is the reason the wrapper exists rather than scanpy's own."""
+    """``lfc_se``, the standard error of the LFC, which scanpy does not report."""
 
     def test_se_reconstructs_the_statistic(self):
         ad = make_adata()
@@ -214,7 +194,7 @@ class TestLfcStandardError:
             np.testing.assert_allclose(se[ok] * np.abs(score[ok]), np.abs(lfc[ok]), rtol=F32_RTOL)
 
     def test_se_is_nan_where_the_lfc_is_zero(self):
-        """0/0 is not recoverable this way, so it is NaN rather than guessed."""
+        """The SE is lfc / statistic, so it is NaN where both are 0."""
         X = counts()
         ad = make_adata(np.vstack([X, X]), labels=["a"] * len(X) + ["b"] * len(X))
         rank_genes_groups_ln(ad, "g")
@@ -229,13 +209,7 @@ class TestLfcStandardError:
         assert np.all(se[np.isfinite(se)] > 0)
 
     def test_interval_excludes_zero_exactly_when_the_statistic_exceeds_1_96(self):
-        """The CI and the statistic are two views of one quantity.
-
-        ``lfc ± 1.96·se`` excludes zero iff ``|lfc| > 1.96·se``, and since
-        ``|lfc| = se·|statistic|`` that is iff ``|statistic| > 1.96``. An
-        algebraic identity, so it holds gene by gene with no tolerance on the
-        decision itself.
-        """
+        """``lfc ± 1.96·se`` excludes zero exactly when ``|statistic| > 1.96``, since ``|lfc| = se·|statistic|``."""
         ad = make_adata()
         rank_genes_groups_ln(ad, "g")
         lfc, score, se = (field(ad, k, "a") for k in ("logfoldchanges", "scores", "lfc_se"))
@@ -252,8 +226,7 @@ class TestOptions:
         np.testing.assert_allclose(q, np.minimum(p * N_GENES, 1.0), rtol=F32_RTOL)
 
     def test_corr_method_is_not_hardcoded(self):
-        """It was, until an arm needed a different correction through this
-        function. The names are scanpy's; see tests/test_corr_method.py."""
+        """The correction follows ``corr_method``, with scanpy's names (see tests/test_corr_method.py)."""
         bonf = make_adata()
         rank_genes_groups_ln(bonf, "g", corr_method="bonferroni")
         bh = make_adata()
@@ -291,12 +264,9 @@ class TestOptions:
 
 class TestNormalisation:
     def test_cp10k_is_applied_and_is_idempotent(self):
-        """The docstring says 'takes normalized data'; the code normalises anyway.
+        """Each cell is scaled to 10,000, which leaves CP10K input unchanged.
 
-        Harmless, because rescaling rows that already sum to 1e4 multiplies by
-        1.0 -- so the wrapper on CP10K input agrees with the estimator asked not
-        to normalise. Pinned because it is the difference between the wrapper
-        being safe on pre-normalised input and silently double-scaling it.
+        So the wrapper on CP10K input agrees with the estimator asked not to normalize.
         """
         X = counts()
         cp10k = X / X.sum(axis=1, keepdims=True) * 1e4

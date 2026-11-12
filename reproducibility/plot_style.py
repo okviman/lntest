@@ -1,8 +1,8 @@
-"""Text sizes and axes shared by every arm's figures.
+"""Text sizes and axes shared by every figure.
 
-Sizes are in points at the size a figure is drawn, so each figure is drawn at
-roughly its printed size (a panel about PANEL inches) and included without scaling;
-then the text is the same size in every figure of the paper.
+Sizes are in points at the size a figure is drawn. Each figure is drawn at about its printed
+size (a panel about PANEL inches) and included without scaling, so the text is the same size
+in every figure of the paper.
 """
 
 import matplotlib.pyplot as plt

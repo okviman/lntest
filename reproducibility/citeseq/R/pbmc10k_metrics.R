@@ -4,9 +4,8 @@ library(Seurat)
 library(tidyverse)
 library(xtable)
 
-# Paths are relative to this script's directory (citeseq/R/), which is what
-# ZILN.Rproj sets as the R working directory. The arm's committed input lives in
-# citeseq/data/; everything this chain produces goes to citeseq/results/.
+# Run from citeseq/R/ (cd citeseq/R && Rscript <script>), as the paths are relative to it.
+# The committed input is in citeseq/data/, and every output goes to citeseq/results/.
 data_dir <- "../data/"
 results_dir <- "../results/"
 # No figures are drawn in R: citeseq/plots.py draws them from the CSVs this chain writes.
@@ -38,7 +37,6 @@ results_tbl <- tbl %>%
 
 metric_order <- c("Accuracy", "Precision", "Recall", "TPR", "TNR", "FNR", "FPR", "F1")
 xt <- results_tbl %>% 
-  #mutate(cell = sprintf("%.3f ± %.3f", mean, se)) %>%
   mutate(
     Metric = factor(Metric, metric_order),
     Method = factor(method_names[Method], method_levels),

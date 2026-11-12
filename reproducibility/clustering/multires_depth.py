@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Do each method's scores follow a cluster's sequencing depth, across Leiden resolutions?
+"""Do the scores of each method follow the sequencing depth of a cluster, across Leiden resolutions?
 
-Reads clustering/de.py's outputs (each cluster against all other cells, five resolutions, both datasets) and reruns no
-test. Per comparison and method, the median score over the cluster's expressed genes (detected in at least EXPRESSED of
-the cluster's or the rest's cells, as published/abdelfattah2022.py), against the cluster's log2 depth ratio, its median
-counts per cell over the rest's (as multires_gaps.py, whose comparisons.csv it must reproduce); per dataset and method,
-the Spearman and Pearson correlations and the slope over the comparisons.
+Input: the outputs of clustering/de.py (each cluster against all other cells, five resolutions, both data sets). No
+test is rerun. Per comparison and method: the median score over the expressed genes of the cluster (detected in at
+least EXPRESSED of the cells of the cluster or of the rest, as in published/abdelfattah2022.py), against the log2 depth
+ratio of the cluster, its median counts per cell over that of the rest (as in multires_gaps.py, whose comparisons.csv
+it must reproduce). Per data set and method: the Spearman and Pearson correlations and the slope over the comparisons.
 
     python -m clustering.multires_depth              # from reproducibility/; about a minute
     python -m clustering.multires_depth --plot-only  # redraw from the CSVs

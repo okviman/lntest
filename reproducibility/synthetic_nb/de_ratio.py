@@ -1,3 +1,8 @@
+"""Extended Data Fig 1c, d: the metrics of synthetic_nb.de_test in both regimes against Var(X)/Var(Y) of the non-DEGs.
+
+    python -m synthetic_nb.de_ratio      # from reproducibility/, after synthetic_nb.de_test in both regimes
+"""
+
 import argparse
 
 import matplotlib.pyplot as plt

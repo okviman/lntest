@@ -1,13 +1,13 @@
 """Tests for ``rank_genes_groups_ln(..., rankby="markers")``, the paper's marker rule.
 
-The rule: the genes LN's t-test calls significant and up in a group come first,
-ranked by the detection term of its log-fold change over its standard error,
-ties to the test statistic and then to the gene name; the other genes follow as
-the default ranking orders them. Each test pins one clause, against a score
-recomputed here from the counts, or a promise the default ranking keeps.
+The genes that LN's t-test calls significant and up in a group come first, ranked
+by the detection term of the LFC over its standard error, with ties broken by the
+test statistic and then the gene name. The other genes follow in the default
+order. Each test checks one part of the rule against a score recomputed here from
+the counts, or checks what the default ranking keeps.
 
 Like ``tests/test_rank_genes_groups.py``, this needs anndata and pandas, which
-are test dependencies only, and skips without them.
+are test dependencies only. Without them, it is skipped.
 """
 from __future__ import annotations
 

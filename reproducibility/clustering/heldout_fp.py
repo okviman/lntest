@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""False positives in the arm's clusters, on negatives chosen from held-out cells (PBMC3k, or PBMC10k with its config).
+"""False positives in the Leiden clusters, on negatives chosen from held-out cells (PBMC3k, or PBMC10k with its config).
 
 Each split divides the cells at random into a selection half and a test half, within each cluster at the finest
-resolution, so every cluster at every resolution is in both. On the selection half, a cluster's negatives are the genes
-expressed in both it and the rest whose mean CP10K expression differs by less than a tolerance, binned by how much
-their variances differ. On the test half every test runs as clustering/de.py runs it, and a negative it calls
-significant (either direction) is a false positive. The CSV counts calls three ways: Bonferroni-adjusted p < 0.05, the
-figures' default, since its cutoff is the same for every test; BH-adjusted p < 0.05, whose cutoff loosens with the
-number of genes a test calls, so that its rate on negatives grows with the test's power; and uncorrected p below each
-of ALPHAS. The negatives come from cells no test sees, so they do not depend on any test's statistic. Genes within the
-tolerance can still differ slightly, and a test with the power to see it is counted as wrong, so the rates are upper
-bounds for every method. The figures draw the rate against the variance ratio, its mean and SD over the splits, and
-against the number of clusters, pooled over the splits.
+resolution, so every cluster at every resolution is in both halves. On the selection half, the negatives of a cluster
+are the genes expressed in both the cluster and the rest whose mean CP10K expression differs by less than a tolerance,
+binned by how much their variances differ. On the test half every test runs as in clustering/de.py. A negative called
+significant in either direction is a false positive.
+The CSV counts calls three ways. Bonferroni-adjusted p < 0.05 is the default of the figures, since its cutoff is the
+same for every test. Under BH-adjusted p < 0.05 the cutoff loosens with the number of genes a test calls, so the rate
+on negatives grows with the power of the test. Uncorrected p is counted below each of ALPHAS.
+The negatives come from cells that no test sees, so they do not depend on the statistic of any test. Genes within the
+tolerance can still differ slightly. A test with the power to see it is counted as wrong, so the rates are upper
+bounds for every method. The figures show the rate against the variance ratio, as the mean and SD over the splits.
+They also show it against the number of clusters, pooled over the splits.
 
     python -m clustering.heldout_fp --config clustering/config.yaml               # from reproducibility/, about a minute
     python -m clustering.heldout_fp --config clustering/config.yaml --plot-only   # redraw from the CSV

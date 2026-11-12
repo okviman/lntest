@@ -1,16 +1,13 @@
 name: ci
 
-# The test matrix and the floor check, on every push and pull request.
-#
-# release.yml calls this workflow rather than repeating it. That is the point:
-# a matrix defined twice drifts, and the version it stops testing is exactly the
-# one that breaks.
+# The tests and the requires-python floor check, on every push and pull request.
+# release.yml runs the same jobs before publishing.
 
 on:
   push:
     branches: [main]
   pull_request:
-  workflow_call:      # release.yml gates publishing on these same jobs
+  workflow_call:
 
 permissions:
   contents: read
@@ -35,7 +32,7 @@ jobs:
       - run: python -m pytest -q
 
   floor:
-    name: the claimed requires-python floor actually imports
+    name: imports on the requires-python floor
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,14 +54,7 @@ jobs:
         with:
           python-version: ${{ steps.floor.outputs.version }}
 
-      # Install WITHOUT the test extra: a user on the floor version gets the
-      # package and its runtime dependencies only.
-      #
-      # This job exists because the floor was wrong once. pyproject claimed
-      # >=3.9 while a signature used `bool | None`, which is PEP 604 and
-      # evaluates at definition time -- so the package was unimportable on the
-      # version it advertised. The floor is now >=3.10, which is what the syntax
-      # actually needs; this job is what keeps the two in step.
+      # The package and its runtime dependencies only, without the test extra.
       - name: Install the package alone and use it
         run: |
           python -m pip install --upgrade pip

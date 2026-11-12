@@ -1,27 +1,28 @@
 #!/usr/bin/env python3
-"""LN's marker rule against LN's score and the baselines: are the markers cell-type specific, free of housekeeping
-genes, and confirmed by surface protein?
+"""LN's marker rule against LN's score and the baselines: are the markers specific to the cell type, free of
+housekeeping genes and confirmed by surface protein?
 
-The rule: LN's Bonferroni-significant up calls ranked by the detection score,
-the detection part log2(p1/p0) over its SE (LN's detection terms), ties by LN's score then name. Against it, the practice
-rule (Bonferroni-significant, up, ranked by score) for LN, the log1p t-test and the Wilcoxon. Two settings: the 6 types
-of clustering/replication.py against the other included cells, both datasets; and every Leiden cluster at the five
-resolutions against all other cells (clustering/de.py's outputs), judged by its majority CellTypist type. Per list:
-- the share of the top TOP that are Monaco et al. 2019's immune housekeeping genes (their Table S3: mean > 5 and SD < 1
-  across 29 sorted immune populations), and that are ribosomal or mitochondrial;
-- the share HPA (release 25.1) calls immune cell enriched, or group enriched with a group holding the type, for the
-  cluster's type (HPA_TYPES); with "enhanced" counted, alongside;
-- the share confirmed by sorted-cell bulk, multires_gaps.py's truth (the type at least MIN_TPM and BULK_FOLD times the
-  rest's mix);
+The rule: LN's Bonferroni-significant up calls ranked by the detection score, the detection part log2(p1/p0) over its
+SE (the detection terms of LN), with ties broken by LN's score and then the name. It is compared with the practice rule
+(Bonferroni-significant, up, ranked by score) for LN, the log1p t-test and the Wilcoxon. Two settings: the 6 types of
+clustering/replication.py against the other included cells in both data sets. Every Leiden cluster at the five
+resolutions against all other cells (the outputs of clustering/de.py), judged by its majority CellTypist type.
+Per list:
+- the share of the top TOP that are immune housekeeping genes of Monaco et al. 2019 (their Table S3: mean > 5 and
+  SD < 1 across 29 sorted immune populations). The share that are ribosomal or mitochondrial.
+- the share that HPA (release 25.1) calls immune cell enriched, or group enriched with a group holding the type of the
+  cluster (HPA_TYPES). The share with "enhanced" counted, alongside.
+- the share confirmed by the sorted-cell bulk of multires_gaps.py (the type at least MIN_TPM and BULK_FOLD times the
+  mix of the rest).
 - PBMC10k only: of the genes of the 13 single-gene antibodies (ANTIBODIES) whose protein separates the cluster from the
-  rest (per-cell CLR, AUC >= PROTEIN_AUC), the share in the top TOP and the top TOP_PROTEIN, and the share of the mapped
+  rest (per-cell CLR, AUC >= PROTEIN_AUC), the share in the top TOP and the top TOP_PROTEIN. The share of the mapped
   genes in the top TOP_PROTEIN that are such markers.
-Genes are matched by Ensembl ID. Means per setting and resolution; at the fine resolutions (FINE clusters or more) the
-rule against each other, paired over clusters with a bootstrap; top-TOP stability between consecutive resolutions; and,
-at PBMC10k's fine resolutions, each protein's recovery. The score rules' multi-resolution lists, bulk shares and
-stabilities must reproduce multires_gaps.py's.
+Genes are matched by Ensembl ID. Means per setting and resolution. At the fine resolutions (FINE clusters or more), the
+rules against each other, paired over clusters with a bootstrap. The top-TOP stability between consecutive
+resolutions. At the fine resolutions of PBMC10k, the recovery of each protein. The multi-resolution lists, bulk shares
+and stabilities of the score rules must reproduce those of multires_gaps.py.
 
-    python -m fetch_data --arm clustering            # Monaco's supplementary and HPA 25.1, with the arm's other inputs
+    python -m fetch_data --arm clustering            # the supplementary of Monaco et al. and HPA 25.1
     python -m clustering.marker_rule                 # from reproducibility/; a few minutes
     python -m clustering.marker_rule --plot-only     # redraw from the CSVs
 """

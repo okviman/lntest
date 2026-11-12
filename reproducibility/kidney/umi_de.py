@@ -1,25 +1,23 @@
+"""Kidney UMI downsampling with planted DEGs: the recovery of each test as depth falls.
+
+The capsules are split at the median depth. Each gene is made a DEG with probability q by multiplying its counts by
+2**lfc in one group. Every capsule is then thinned binomially by p_sample. The capsules are split at the median depth
+again. The DE metrics and PR curves are those of spot_split.
+
+    python -m kidney.umi_de --n_cells_remove 35 --q 0.005 --lfc 3 --p_min 0.125 --n_reps 100 --output kidney/results/downsample_degs_100rep.pdf
+"""
+
 import os
-import sys
 import numpy as np
-import statsmodels.stats.multitest as smm
 import scanpy as sc
 import scipy.sparse as sp
 import argparse
 from multiprocessing import Pool, cpu_count
-from functools import partial
-import matplotlib.pyplot as plt
-from collections import defaultdict
-import pandas as pd
 
 from paths import data_dir, fig_name, require_input, results_dir
 import plot_style
-from method_colors import method_color, method_draw_order, method_label, method_order
 
-# Run from reproducibility/ as `python -m kidney.umi_de`, which puts that
-# directory on sys.path -- no path manipulation needed.
-from lntest import get_LN_lfcs as get_DELN_lfcs
-from baselines import scanpy_sig_test
-# spot_split's DE metrics, so the two kidney arms report the same quantities, PR curves included
+# spot_split's DE metrics, so both kidney experiments report the same quantities
 from kidney.spot_split import (RECALL_GRID, de_test_single, interpolate_precision, save_pr_curve_data,
                                save_results_de, summarise_de)
 plot_style.use()
@@ -101,76 +99,10 @@ def run_tests_for_p(p, q, lfc, n_cells_remove, umis_base, library_sizes_base, n_
     return summarise_de(results_list)
 
 
-def plot_results(p_values, results_by_p, output_file, q, lfc):
-    """Plot TPR, FPR, FNR, and TNR vs p for all methods."""
-    methods = method_draw_order(results_by_p[p_values[0]])
-    colors = [method_color(m) for m in methods]
-    
-    fig, axes = plt.subplots(2, 2, figsize=plot_style.figsize(2, 2))
-    
-    # Plot TPR
-    for idx, method in enumerate(methods):
-        tpr_means = [results_by_p[p][method]["tpr_mean"] for p in p_values]
-        tpr_stds = [results_by_p[p][method]["tpr_std"] for p in p_values]
-        
-        axes[0, 0].errorbar(p_values, tpr_means, yerr=tpr_stds, 
-                        label=method_label(method), 
-                        color=colors[idx], **plot_style.ERRORBAR)
-    
-    axes[0, 0].set_xlabel(r'$p_\mathrm{sample}$')
-    axes[0, 0].set_ylabel('TPR')
-    axes[0, 0].set_ylim([0, 1])
-    
-    # Plot FPR
-    for idx, method in enumerate(methods):
-        fpr_means = [results_by_p[p][method]["fpr_mean"] for p in p_values]
-        fpr_stds = [results_by_p[p][method]["fpr_std"] for p in p_values]
-        
-        axes[0, 1].errorbar(p_values, fpr_means, yerr=fpr_stds, 
-                        label=method_label(method), 
-                        color=colors[idx], **plot_style.ERRORBAR)
-    
-    axes[0, 1].set_xlabel(r'$p_\mathrm{sample}$')
-    axes[0, 1].set_ylabel('FPR')
-    axes[0, 1].set_ylim([0, 1])
-    
-    # Plot FNR
-    for idx, method in enumerate(methods):
-        fnr_means = [results_by_p[p][method]["fnr_mean"] for p in p_values]
-        fnr_stds = [results_by_p[p][method]["fnr_std"] for p in p_values]
-        
-        axes[1, 0].errorbar(p_values, fnr_means, yerr=fnr_stds, 
-                        label=method_label(method), 
-                        color=colors[idx], **plot_style.ERRORBAR)
-    
-    axes[1, 0].set_xlabel(r'$p_\mathrm{sample}$')
-    axes[1, 0].set_ylabel('False Negative Rate (FNR)')
-    axes[1, 0].set_ylim([0, 1])
-    
-    # Plot TNR
-    for idx, method in enumerate(methods):
-        tnr_means = [results_by_p[p][method]["tnr_mean"] for p in p_values]
-        tnr_stds = [results_by_p[p][method]["tnr_std"] for p in p_values]
-        
-        axes[1, 1].errorbar(p_values, tnr_means, yerr=tnr_stds, 
-                        label=method_label(method), 
-                        color=colors[idx], **plot_style.ERRORBAR)
-    
-    axes[1, 1].set_xlabel(r'$p_\mathrm{sample}$')
-    axes[1, 1].set_ylabel('True Negative Rate (TNR)')
-    axes[1, 1].set_ylim([0, 1])
-    
-    plt.tight_layout()
-    plot_style.legend_outside(fig)
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    print(f"Plot saved to {output_file}")
-    plt.close()
-
-
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Test DE detection with parallel execution')
+    parser = argparse.ArgumentParser(description='Kidney UMI downsampling with planted DEGs')
     parser.add_argument('--n_cells_remove', type=int, required=True,
-                        help='Number of cells with lowest total count to remove')
+                        help='Number of capsules with the lowest total count to remove')
     parser.add_argument('--q', type=float, required=True,
                         help='Fraction of genes to introduce DE')
     parser.add_argument('--lfc', type=float, required=True,
@@ -217,17 +149,13 @@ if __name__ == '__main__':
         raise ValueError("q must be between 0 and 1")
     
     print(f"Loading data...")
-    # Load spatial ovary data (raw read counts in adata.X)
     h5ad = sc.read_h5ad(require_input(
         data_dir(__file__) / "merged_blobs_in_cluster_5.h5ad",
-        what="the merged glomerular-capsule matrix arms D and E subsample",
-        source="Visium HD kidney capsules, cluster-5 blobs. Not in this "
-               "repository, but public and rebuildable: run kidney/preprocess.ipynb "
-               "top to bottom (downloads 6.5 GB from 10x)",
+        what="the glomerular-capsule matrix, one row per capsule",
+        source="python -m kidney.preprocess (downloads 6.5 GB from 10x)",
     ))
     # Make gene names unique using gene_id
     h5ad.var = h5ad.var.reset_index().set_index('gene_ids')
-    # Robustly convert to a dense numpy array
     X_raw = h5ad.X
     if sp.issparse(X_raw):
         umis_w_zeros = X_raw.toarray()
@@ -236,13 +164,13 @@ if __name__ == '__main__':
 
     print(f"Preprocessing data...")
     # preprocessing
-    # remove genes with zero counts accross all cells
+    # remove genes with zero counts across all capsules
     idx = umis_w_zeros.sum(0) > 0
     umis = umis_w_zeros[:, idx]
     n_genes = umis.shape[-1]
     n_cells = umis.shape[0]
 
-    # remove the n_cells_remove cells with lowest read counts
+    # remove the n_cells_remove capsules with the lowest counts
     library_sizes = umis.sum(1)
     order = np.argsort(library_sizes)
     if order.size > n_cells_remove:
@@ -278,7 +206,5 @@ if __name__ == '__main__':
     save_results_de(p_values, results_by_p, results_file, q, lfc)
     save_pr_curve_data(p_values, results_by_p, f"{os.path.splitext(results_file)[0].removesuffix('_results')}_pr_curve_data.json", q, lfc)
     
-    print(f"Generating plots...")
-    # plot_results(p_values, results_by_p, output_file, q, lfc)
     print("Done!")
 

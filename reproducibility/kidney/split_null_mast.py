@@ -1,15 +1,15 @@
-"""MAST on the kidney's no-DEG spot-splitting null (Fig 1f), on the first SPLITS saved splits of each p_split.
+"""MAST on the kidney spot-splitting null without DEGs, the experiment of Fig 1f, on the first SPLITS splits of each p_split.
 
-Each split is rebuilt from its seed in split_null_per_split.csv by kidney.spot_split.create_groups_from_shape_ids, after
-spot_split's capsule filter (N_REMOVE lowest-count capsules dropped, as the README's run). Genes unexpressed in either
-half are dropped as spot_split.fpr_test_single drops them; MAST runs through Seurat's FindMarkers with its gene filters
-off (de_utils.run_mast_two_groups: the hurdle LRT on log1p CP10K, ~ group), Bonferroni; FPR = genes called over genes
-tested. Written to
-split_null_mast_per_split.csv in spot_split's per-split columns, batch by batch; a rerun keeps the splits already there.
-The uncorrected p-values give the share of genes below each of kidney.null_calibration's ALPHAS, written to
-split_null_mast_calibration.csv in null_calibration's columns, whose replicates are these same splits.
-The figures draw Fig 1f's panel and the calibration for all four tests over the same splits, the other three from
-spot_split's per-split CSV and null_calibration's CSV.
+Each split is rebuilt from its seed in split_null_per_split.csv by kidney.spot_split.create_groups_from_shape_ids,
+after the capsule filter of spot_split (the N_REMOVE capsules with the lowest counts dropped). Genes without counts in
+either half are dropped, as in spot_split.fpr_test_single. MAST runs through Seurat's FindMarkers with its gene filters
+off (de_utils.run_mast_two_groups: the hurdle LRT on log1p CP10K, ~ group), with Bonferroni. The FPR is the number of
+genes called over the number tested.
+The results go to split_null_mast_per_split.csv in the per-split columns of spot_split, batch by batch. A rerun keeps
+the splits already there. The uncorrected p-values give the share of genes below each of kidney.null_calibration.ALPHAS,
+written to split_null_mast_calibration.csv in the columns of null_calibration, whose replicates are the same splits.
+The figures show the panel of Fig 1f and the calibration for all four tests over the same splits. The other three
+tests come from the per-split CSV of spot_split and the CSV of null_calibration.
 
     python -m kidney.split_null_mast              # from reproducibility/; about 25 minutes; needs R_HOME; resumes
     python -m kidney.split_null_mast --plot-only  # redraw from the CSVs
@@ -47,7 +47,7 @@ def capsules(input_file=data_dir(__file__) / 'podocytes_2um.h5ad', n_remove=N_RE
     import scanpy as sc
     import scipy.sparse as sp
     h5ad = sc.read_h5ad(require_input(input_file, what='the per-2um-spot kidney matrix',
-                                      source='kidney/preprocess.ipynb (see README)'))
+                                      source='python -m kidney.preprocess'))
     umis = sp.csr_matrix(h5ad.X)
     shape_ids = h5ad.obs['shape_id'].values
     totals = {s: umis[shape_ids == s, :].sum() for s in np.unique(shape_ids)}

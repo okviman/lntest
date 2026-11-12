@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""Do the methods select the same markers in both of the arm's datasets, PBMC3k and PBMC10k?
+"""Do the methods select the same markers in both clustering data sets, PBMC3k and PBMC10k?
 
-The cell types clustering/celltype_labels.py includes are each tested against the others in both datasets, the tests
-run as clustering/de.py runs them. A method's markers of a type are its Bonferroni-significant genes with a positive
-score, ranked by its score (or, as a sensitivity, by its reported LFC), among the genes the other dataset's annotation
-has. Concordance, for the method's top-N lists A (PBMC3k) and B (PBMC10k): |A ∩ B| / |A ∪ B|, the share of all genes
-it selected that it selected in both. Effect transfer: per type, over the genes detected in at least DETECTED of the
-type's or the reference's cells in each dataset, LN's LFC, scanpy's logfoldchanges and AUC - 1/2 (U / (n1 n2), ties
-counted one half) in PBMC3k against PBMC10k, and the same over each dataset's top-TOP_TRANSFER markers.
+Each cell type that clustering/celltype_labels.py includes is tested against the others in both data sets, with the
+tests run as in clustering/de.py. The markers of a type for a method are its Bonferroni-significant genes with a
+positive score, ranked by its score (or, as a sensitivity, by its reported LFC), among the genes in the annotation of
+the other data set. Concordance, for the top-N lists A (PBMC3k) and B (PBMC10k) of a method: |A ∩ B| / |A ∪ B|, the
+share of all genes it selected that it selected in both. Effect transfer, per type, over the genes detected in at least
+DETECTED of the cells of the type or of the reference in each data set: LN's LFC, scanpy's logfoldchanges and
+AUC - 1/2 (U / (n1 n2), ties counted one half) in PBMC3k against PBMC10k. The same over the top-TOP_TRANSFER markers of
+each data set.
 
     python -m clustering.replication               # from reproducibility/, minutes
     python -m clustering.replication --plot-only   # redraw from the CSVs
@@ -49,7 +50,7 @@ OUT = results_dir(__file__) / 'replication'
 
 
 def load(name):
-    """A dataset's included cells: CP10K and log1p CP10K over the arm's genes, and each cell's type."""
+    """A dataset's included cells: CP10K and log1p CP10K over the dataset's genes, and each cell's type."""
     config_path, out = dataset_paths()[name]
     path = require_input(de_output(yaml.safe_load(open(config_path))['adata_path'], str(out)),
                          what=f'the {name} DE-annotated AnnData', source='python -m clustering.de (see README)')
@@ -68,7 +69,7 @@ def load(name):
 
 
 def annotation(name):
-    """Every gene of a dataset's 10x annotation, named as the arm names them (scanpy's unique symbols)."""
+    """Every gene of a dataset's 10x annotation, named as clustering/de.py names them (scanpy's unique symbols)."""
     if name == 'PBMC10k':
         with h5py.File(require_input(RAW, what="the 5' PBMC 10k matrix", source='python -m fetch_data --arm citeseq'),
                        'r') as f:
@@ -275,7 +276,7 @@ def save(fig, path, key=True):
 
 
 def plot(conc, pool, df, summary):
-    """The arm's figures: concordance against N (Fig 2d) and its sensitivities, and the effect transfer (Fig 2e)."""
+    """The figures: concordance against N (Fig 2d) and its sensitivities, and the effect transfer (Fig 2e)."""
     plot_style.use()
     for ranking in RANKINGS:
         fig, ax = plt.subplots(figsize=plot_style.figsize())

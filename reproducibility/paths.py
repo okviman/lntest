@@ -1,15 +1,7 @@
-"""Arm-relative paths, and inputs that fail by name.
+"""Paths relative to the directory of each experiment, with inputs that fail by name.
 
-Every entry point resolves its data and results from its own location rather
-than from the working directory. That matters here because the arms disagreed
-about what the working directory was -- `clustering/config.yaml` assumed one
-thing and `celltype/config.yaml` another, and four R scripts assumed a third --
-which is a large part of why only one arm reproduced.
-
-`require_input` makes an entry point check its inputs exist and exit with the
-missing path named. Three arms read data that is not public; the most this repository can
-do for them is fail immediately and say which file is missing and where it comes
-from, instead of dying part-way through a run.
+Every entry point resolves its data and results from its own location, not from the working directory.
+`require_input` exits naming a missing input and where it comes from, before anything is written.
 """
 
 from __future__ import annotations
@@ -20,7 +12,7 @@ import sys
 
 
 def arm_dir(module_file) -> pathlib.Path:
-    """The arm folder containing the calling script."""
+    """The experiment directory containing the calling script."""
     return pathlib.Path(module_file).resolve().parent
 
 
@@ -45,7 +37,7 @@ def require_input(path, *, what: str, source: str) -> pathlib.Path:
         f"  path   : {p}\n"
         f"  what   : {what}\n"
         f"  source : {source}\n\n"
-        f"This arm cannot run without it. Nothing has been written.\n"
+        f"This script cannot run without it. Nothing has been written.\n"
     )
 
 

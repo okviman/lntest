@@ -1,17 +1,17 @@
-"""LFC estimates and their 95% intervals against the true LFC: the log1p t-test's and LN's.
+"""LFC estimates of the log1p t-test and of LN's t-test with their 95% intervals, against the true LFC.
 
-Two groups of 1,000 cells and 1,500 genes. X is NB with dispersion 2 and mean 10, a tenth of its genes shifted
-up by |N(0, 5)|; Y is NB with dispersion 1 and mean 10e, so e times deeper. After normalising for depth, the
-true LFC of Y against X is log2(10 / mu_X): 0 for the unshifted genes.
+Two groups of 1,000 cells and 1,500 genes. X is NB with dispersion 2 and mean 10, with a tenth of its genes shifted up
+by |N(0, 5)|. Y is NB with dispersion 1 and mean 10e, e times deeper. After depth normalisation, the true LFC of Y
+against X is log2(10 / mu_X), 0 for the unshifted genes.
 
-The log1p interval is the t-test's, around the difference of the groups' mean log1p expression; the figure's
-log1p points are scanpy's reported logfoldchanges, which can fall outside that interval.
+The log1p interval is that of the t-test, around the difference of the mean log1p expression of the groups. The log1p
+points of the figure are the logfoldchanges that scanpy reports, which can fall outside that interval.
 
     python -m synthetic_nb.lfc_confidence_intervals      # from reproducibility/
 """
 
 import numpy as np
-from lntest import get_LN_lfcs as get_DELN_lfcs
+from lntest import get_LN_lfcs
 from baselines import scanpy_sig_test
 from paths import fig_name, results_dir
 import plot_style
@@ -75,8 +75,7 @@ def simulate(seed=SEED):
 
     sc_lfcs = scanpy_sig_test(X, Y)[0].to_numpy()  # the Series index is in ranked order
     X_raw, Y_raw = X.copy(), Y.copy()
-    # this is how Scanpy calculates the statistics used in the t test (based on their code)
-    # the results here were reproduced in the debugging console within the scanpy code, too
+    # log1p CP10K, on which scanpy's t-test runs
     X = np.log(1e4 * X / (X.sum(1, keepdims=True)) + 1)
     Y = np.log(1e4 * Y / (Y.sum(1, keepdims=True)) + 1)
 
@@ -90,9 +89,9 @@ def simulate(seed=SEED):
     se_X = np.sqrt(var_X / nx)
     se = np.sqrt(se_Y ** 2 + se_X ** 2) / np.log(2)
 
-    deln_lfcs, _, gamma = get_DELN_lfcs(Y_raw, X_raw, return_standard_error=True)
+    ln_lfcs, _, gamma = get_LN_lfcs(Y_raw, X_raw, return_standard_error=True)
     return {'true': true_lfcs[0], 'non_de': non_de_idx, 'scanpy': sc_lfcs,
-            'log1p': ((mean_Y - mean_X) / np.log(2), se), 'LN': (deln_lfcs, gamma)}
+            'log1p': ((mean_Y - mean_X) / np.log(2), se), 'LN': (ln_lfcs, gamma)}
 
 
 def coverage(true, estimate, se):
@@ -137,7 +136,7 @@ def main():
     sim = simulate()
     non_de_idx, sc_lfcs = sim['non_de'], sim['scanpy']
     log1p_lfcs, se = sim['log1p']
-    deln_lfcs, gamma = sim['LN']
+    ln_lfcs, gamma = sim['LN']
 
     # for simplicity, the confidence intervals are formed with a critical z value (not t)
     # but for these sample sizes the values are equal
@@ -155,9 +154,9 @@ def main():
     plt.tight_layout()
     _save('lfc_ci_log1p.png')
 
-    deln_confidence_intervals = deln_lfcs + 1.96 * np.array([-gamma, gamma])
-    print(f"LN's Estimated LFC is below CI {np.sum(deln_lfcs < deln_confidence_intervals[0])} times")
-    print(f"LN's Estimated LFC is above CI {np.sum(deln_lfcs > deln_confidence_intervals[1])} times")
+    ln_confidence_intervals = ln_lfcs + 1.96 * np.array([-gamma, gamma])
+    print(f"LN's Estimated LFC is below CI {np.sum(ln_lfcs < ln_confidence_intervals[0])} times")
+    print(f"LN's Estimated LFC is above CI {np.sum(ln_lfcs > ln_confidence_intervals[1])} times")
 
     plt.figure(figsize=plot_style.figsize())
     draw(plt.gca(), sim, 'LN')

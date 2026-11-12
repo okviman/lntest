@@ -1,12 +1,11 @@
-"""One colour, display name and position per DE method, shared by every arm's figures.
+"""One colour, display name and position per DE method, shared by every figure.
 
-The arms label the same method differently in their results ("DELN", "LN test",
-"LN_test"; "t-test", "Scanpy t-test (log1p)"; ...), so every function here accepts
-any of those labels. An unknown label raises instead of falling back, so a new
-method cannot quietly get an off-palette colour or a stray name.
+The experiments label the same method differently in their results: "DELN", "LN test" or "LN_test" for LN's t-test,
+"t-test" or "Scanpy t-test (log1p)" for the log1p t-test, among others. Every function here accepts any of those
+labels. An unknown label raises, so a new method cannot get an off-palette colour or a stray name.
 
-Legends list methods in METHODS order, LN's t-test first; figures draw LN's t-test last,
-so its data sits on top of the others.
+Legends list methods in METHODS order, LN's t-test first. Figures draw LN's t-test last, so its data sits on top of the
+others.
 """
 
 LN = '#2ca02c'            # tab10 green
@@ -20,7 +19,7 @@ WILCOXON_UNTIED = '#9edae5'  # tab20 light cyan: Wilcoxon without tie correction
 # Box-plot medians: a plain thin line, as in the default style.
 MEDIANPROPS = {'color': 'black', 'linewidth': 1.0}
 
-# (display name, colour, labels the arms use), in drawing and legend order.
+# (display name, colour, labels the experiments use), in drawing and legend order.
 METHODS = [
     (r"LN's $t$-test", LN, ['ln', 'deln', 'ln_test', 'ln test', "ln's test", "ln's t-test",
                             "ln's-t-test", 'ziln', 'lognormal']),

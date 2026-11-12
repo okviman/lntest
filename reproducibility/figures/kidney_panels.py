@@ -1,5 +1,5 @@
-"""Rows of kidney panels shared by the assembled figures, for either experiment: spot splitting (p_split) or UMI
-downsampling (p_sample). Each panel is drawn by the arm's own drawing code; these only place it.
+"""Rows of kidney panels shared by the assembled figures, for spot splitting (p_split) or UMI downsampling (p_sample).
+Each panel is drawn by the code of its experiment. These functions only place it.
 """
 
 import matplotlib.pyplot as plt

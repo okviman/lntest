@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""An exact null built from the arm's cells (PBMC3k, or PBMC10k with its config): every call is a false positive for a
-test of equal means.
+"""An exact null built from the cells of PBMC3k (or PBMC10k, with its config): every call is a false positive for a test
+of equal means.
 
-Each cluster of at least MIN_CELLS cells at RESOLUTION is split into random halves, and one half is binomially thinned
-to each of FRACTIONS of its counts. Thinning keeps every cell's expected composition, so every gene's expected CP10K is
-equal in the two halves; only depth, and with it sparsity and CP10K variance, differs. The CSV counts, per test, each
-method's genes with uncorrected p below each of ALPHAS, with no p, and called under Bonferroni.
+Each cluster of at least MIN_CELLS cells at RESOLUTION is split into random halves. One half is binomially thinned to
+each of FRACTIONS of its counts. Thinning keeps the expected composition of every cell, so the expected CP10K of every
+gene is equal in the two halves. Only the depth differs, with the sparsity and the CP10K variance that follow from it.
+Per test, the CSV holds the number of genes of each method with uncorrected p below each of ALPHAS, with no p and
+called under Bonferroni.
 
     python -m clustering.exact_null --config clustering/config.yaml --n-workers 4                  # from reproducibility/
     python -m clustering.exact_null --config clustering/config_pbmc10k.yaml --output-dir clustering/results/pbmc10k --n-workers 4
@@ -222,7 +223,7 @@ def plot_alphas(draw, path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="An exact null built from the arm's cells: thinned random halves")
+    parser = argparse.ArgumentParser(description="An exact null from thinned random halves of each cluster")
     parser.add_argument('--config', type=str, required=True, help='Path to the clustering YAML config')
     parser.add_argument('--output-dir', type=str, default=str(results_dir(__file__)),
                         help='Where clustering/de.py wrote its h5ad; the CSV goes to its metrics/, the figure to figures/')

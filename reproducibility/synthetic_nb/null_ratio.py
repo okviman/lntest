@@ -1,3 +1,11 @@
+"""Fig 1c: the FPR of each test against Var(Y)/Var(X), from the null sweeps of synthetic_nb.null at means 5 and 50.
+
+Method by colour, Var(X) by line style. Output: null_fpr.pdf (panels side by side), null_fpr_narrow.pdf (the same,
+30% narrower) and null_fpr_stacked.pdf (one panel above the other).
+
+    python -m synthetic_nb.null_ratio      # from reproducibility/, after both sweeps of synthetic_nb.null
+"""
+
 import argparse
 import math
 

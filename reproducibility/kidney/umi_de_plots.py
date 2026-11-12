@@ -1,17 +1,14 @@
-"""
-Script to plot TPR and FPR from the CSV output of vishd_test_de_parallel.py.
+"""TPR and FPR against p_sample from the results CSV of kidney.umi_de.
 
-Usage:
-    python plot_de_results.py --input results.csv --output plot.png
+    python -m kidney.umi_de_plots --input kidney/results/downsample_degs_10000rep_results.csv --output kidney/results/downsample_degs_10000rep_tpr_fpr.pdf
 """
 
 import argparse
-import numpy as np
 import pandas as pd
 
 from paths import fig_name, require_input
 import plot_style
-from method_colors import method_color, method_draw_order, method_label, method_order
+from method_colors import method_color, method_draw_order, method_label
 import matplotlib.pyplot as plt
 
 from kidney.fpr_plots import SAMPLING
@@ -34,7 +31,7 @@ def plot_de_results(csv_file, output_file):
     print(f"Loading data from {csv_file}...")
     df = pd.read_csv(require_input(
         csv_file,
-        what="this arm's DE-with-planted-DEGs results",
+        what="kidney.umi_de's results",
         source="run `python -m kidney.umi_de` first",
     ))
     
@@ -95,7 +92,7 @@ if __name__ == '__main__':
         '--input',
         type=str,
         required=True,
-        help='Path to input CSV file (output from vishd_test_de_parallel.py)'
+        help='Results CSV of kidney.umi_de'
     )
     parser.add_argument(
         '--output',

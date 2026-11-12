@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""The lymph node's ground truth: a pseudo-bulk PyDESeq2 test of Cluster-3 against Cluster-1, on the cells the
-subsampling runs on, at full depth.
+"""The ground truth of the lymph node: a pseudo-bulk PyDESeq2 test of Cluster-3 against Cluster-1, on the cells of the
+subsampling at full depth.
 
-Every 2 um spot of a cell is summed, and cells and genes pass the config's own filters (min_spots_per_cell,
-min_counts_after_subsampling, min_cells_per_gene in each cluster), so every replicate's cells and genes are in the
-reference. Each cluster's cells are shuffled (seed 0) and cut into pools of POOL cells, summed; the pools are
-PyDESeq2's samples. Wald test of Cluster-3 against Cluster-1, BH over every gene (no independent filtering), DESeq2's
-convention for what counts as a marker; the methods scored against it are called under Bonferroni. A gene is a
-reference marker of Cluster-3 if its adjusted p is below ALPHA and its LFC positive, of Cluster-1 if negative. Writes
-the CSV the config names as `reference`, which lymphnode/subsampling.py scores every method against.
+Every 2 um spot of a cell is summed. Cells and genes pass the filters of the config (min_spots_per_cell,
+min_counts_after_subsampling, min_cells_per_gene in each cluster), so the cells and genes of every replicate are in the
+reference. The cells of each cluster are shuffled (seed 0), cut into pools of POOL cells and summed. The pools are the
+samples of PyDESeq2. Wald test of Cluster-3 against Cluster-1, with Benjamini-Hochberg over every gene (no independent
+filtering), the DESeq2 convention for what counts as a marker. The methods scored against it are called under
+Bonferroni. A gene is a reference marker of Cluster-3 if its adjusted p is below ALPHA and its LFC positive, of
+Cluster-1 if negative. The output is the CSV that the config names as `reference`, against which
+lymphnode/subsampling.py scores every method.
 
-    python -m lymphnode.pseudobulk_reference --config lymphnode/config_50rep.yaml    # from reproducibility/, a minute
+    python -m lymphnode.pseudobulk_reference --config lymphnode/config_50rep.yaml    # from reproducibility/, under a minute
 """
 
 import argparse
@@ -43,7 +44,7 @@ def cell_counts(adata, cell_column, cluster_column):
 
 
 def filtered(counts, clusters, n_spots, config):
-    """The arm's cell and gene filters at full depth, repeated until nothing changes, as the subsampling applies them."""
+    """The cell and gene filters of lymphnode.subsampling at full depth, repeated until nothing changes, as the subsampling applies them."""
     cells = (n_spots >= config.get('min_spots_per_cell', DEFAULT_MIN_SPOTS_PER_CELL))
     genes = np.ones(counts.shape[1], dtype=bool)
     min_counts = config.get('min_counts_after_subsampling', DEFAULT_MIN_COUNTS_AFTER_SUBSAMPLING)

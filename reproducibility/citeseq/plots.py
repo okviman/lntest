@@ -1,4 +1,4 @@
-"""Every CITE-seq figure, from the CSVs that exp.py and the R chain write; nothing is drawn in R.
+"""Every CITE-seq figure, from the CSVs that exp.py and the R scripts write. No figure is drawn in R.
 
     python -m citeseq.plots      # from reproducibility/
 """
@@ -16,7 +16,7 @@ from paths import fig_name, require_input, results_dir
 
 RESULTS = results_dir(__file__)
 GATE_SHADES = {'-': '0.8', '+': '0.5', '++': '0.2'}
-# The metrics of the manuscript's metrics table (RECOMB Table 3), in its order, and FPR beside TNR
+# The metrics of CITE_seq_metrics.tex, in its order, and FPR beside TNR
 TABLE_METRICS = {'accuracy': 'Accuracy', 'precision': 'Precision', 'tpr': 'TPR', 'tnr': 'TNR', 'fpr': 'FPR', 'f1': 'F1'}
 # Scanpy's and Seurat's log1p t-tests appear side by side here, so both are named by tool
 SCANPY_LOG1P = f"Scanpy {method_label('t-test')}"
@@ -136,7 +136,7 @@ def lfc():
 
 
 def ranking_curve(is_de, adj_p):
-    """Precision and recall down the ranking by adjusted p-value (the kidney arm's, kidney/spot_split.py
+    """Precision and recall down the ranking by adjusted p-value (as kidney/spot_split.py
     de_test_single), and the AUPRC as everywhere in the paper: sklearn's average precision of that ranking."""
     score = -np.log10(np.clip(np.nan_to_num(adj_p, nan=1.0), 1e-300, 1.0))
     hits = is_de[np.argsort(score)[::-1]]

@@ -1,5 +1,16 @@
+"""Planted effects in the memory CD4 T cells of PBMC10k: the LFC estimates and calls of each test against the truth.
+
+The memory CD4 T cells of the 10x 5' PBMC 10k CITE-seq run, selected by surface protein
+(citeseq/R/pbmc10k_process.R), are split at random into two groups, 100 times. In each replicate, the counts of 100
+random genes are multiplied in one group by 2 to a log2 fold change drawn from N(0, 1). LN's t-test, the log1p t-test
+and the Wilcoxon, with Bonferroni, are scored against these fold changes, over the genes detected in at least 3 cells
+of each group. Output: CITE_seq_results.csv (per gene and replicate), CITE_seq_metrics.csv (per replicate) and the
+counts of each replicate for citeseq/R/pbmc10k_seurat.R.
+
+    python -m citeseq.exp      # from reproducibility/
+"""
+
 import os
-import pathlib
 
 from paths import data_dir, require_input, results_dir
 import plot_style
@@ -8,7 +19,7 @@ from method_colors import method_color, method_label
 import anndata as ann
 import pandas as pd
 import numpy as np
-from lntest import get_LN_lfcs as get_DELN_lfcs
+from lntest import get_LN_lfcs
 import statsmodels.stats.multitest as smm
 from baselines import get_test_results, scanpy_sig_test
 from tqdm import tqdm
@@ -20,18 +31,17 @@ plot_style.use()
 memory_CD4 = ann.read_h5ad(require_input(
     DATA / "memory_CD4.h5ad",
     what="memory CD4 T cells from the 10x PBMC10k CITE-seq run, ADT-gated",
-    source="rebuild with citeseq/R/pbmc10k_process.R then pbmc10k_to_h5ad.R, "
-           "or take it from the Zenodo deposit",
+    source="committed in citeseq/data/, or rebuilt with citeseq/R/pbmc10k_process.R "
+           "then pbmc10k_to_h5ad.R",
 ))
 os.makedirs(RESULTS / "figures", exist_ok=True)
 
 np.random.seed(1)
 replicates = 100
 min_cells_per_group = 3
-methods = ["deln", "scanpy"]
 
 # Lists to store results from each replicate
-mse_deln_list = []
+mse_ln_list = []
 mse_scanpy_list = []
 all_results_list = []
 metrics_list = []
@@ -91,10 +101,10 @@ for i in tqdm(range(replicates), desc="Running replicates"):
 
     # 4. Run DE tests on the raw count arrays
     
-    # Method 1: DELN
-    lfcs_deln, pvals_deln, se_deln = get_DELN_lfcs(
+    # Method 1: LN's t-test
+    lfcs_ln, pvals_ln, se_ln = get_LN_lfcs(
         X_data_filtered, Y_data_filtered, return_standard_error=True)
-    adj_pvals_deln = smm.multipletests(pvals_deln, alpha=0.05, method='bonferroni')[1]
+    adj_pvals_ln = smm.multipletests(pvals_ln, alpha=0.05, method='bonferroni')[1]
 
     # Method 2: Wilcoxon
     corr_method="bonferroni"
@@ -106,10 +116,10 @@ for i in tqdm(range(replicates), desc="Running replicates"):
 
     # 5. Store results    
     de_results = pd.DataFrame({
-        'ln_lfc': lfcs_deln, 
+        'ln_lfc': lfcs_ln, 
         'scanpy_lfc': lfcs_scanpy,
         'true_lfc': true_lfcs_filtered,
-        'ln_adj_pvalue':  adj_pvals_deln,
+        'ln_adj_pvalue':  adj_pvals_ln,
         'w_adj_pvalue': adj_pvals_w.values,
         't_adj_pvalue': adj_pvals_t.values,
         'is_signal_gene': signal_mask_filtered
@@ -119,11 +129,11 @@ for i in tqdm(range(replicates), desc="Running replicates"):
     all_results_list.append(de_results)
 
     # 6. Calculate and store MSE for this replicate
-    mse_deln_list.append(np.mean((de_results["ln_lfc"] - de_results["true_lfc"])**2))
+    mse_ln_list.append(np.mean((de_results["ln_lfc"] - de_results["true_lfc"])**2))
     mse_scanpy_list.append(np.mean((de_results["scanpy_lfc"] - de_results["true_lfc"])**2))
 
     # 7. Compute metrics.
-    ln_results = get_test_results(adj_pvals_deln, true_lfcs_filtered, verbose=False)
+    ln_results = get_test_results(adj_pvals_ln, true_lfcs_filtered, verbose=False)
     w_results = get_test_results(adj_pvals_w, true_lfcs_filtered, verbose=False)
     t_test_results = get_test_results(adj_pvals_t, true_lfcs_filtered, verbose=False)
     metrics = {"LN": ln_results, "Wilcoxon": w_results, "t-test": t_test_results}
@@ -132,7 +142,6 @@ for i in tqdm(range(replicates), desc="Running replicates"):
     metrics_list.append(metrics_df)
 
     # 8. Generate a figure of estimated vs true fold change.
-    # Check these figures to make sure the runs were successful.
     scatter_panels(de_results['true_lfc'],
                    [(method_label('LN'), method_color('LN'), de_results['ln_lfc']),
                     (SCANPY_LOG1P, method_color('t-test'), de_results['scanpy_lfc'])],
@@ -151,7 +160,7 @@ for i in tqdm(range(replicates), desc="Running replicates"):
 print("...Simulation finished.")
 
 print("  Aggregate MSE Results")
-print(f"DELN MSE:        {np.mean(mse_deln_list):.4f} +/- {np.std(mse_deln_list):.4f}")
+print(f"LN MSE:          {np.mean(mse_ln_list):.4f} +/- {np.std(mse_ln_list):.4f}")
 print(f"Wilcoxon MSE:    {np.mean(mse_scanpy_list):.4f} +/- {np.std(mse_scanpy_list):.4f}")
 
 # Combine all results into one big DataFrame

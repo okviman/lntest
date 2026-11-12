@@ -1,11 +1,14 @@
-"""Supplementary Fig 5: kidney UMI downsampling, assembled from the arm's existing figures in Fig 1 f-h's layout.
+"""Supplementary Fig 5: kidney UMI downsampling, assembled from the figures of the kidney experiments in the layout of
+Fig 1f-h.
 
-a: downsample_null_fpr_log (kidney.fpr_plots), b: the AUPRC (each replicate's average precision, as Fig 1g), c: downsample_degs_100rep_pr_curves,
-with one method key and the p_sample key beside c, as in Fig 1; d: the share of null genes with uncorrected p below 0.05 on the no-DEG downsampling null (kidney.null_calibration.draw_calibration); e: downsample_degs_100rep_tpr_fpr with its key
-(kidney.spot_split_plots). Each is drawn by its own drawing code from the saved results, at the size it prints at;
-a change to a panel belongs in that code.
+a: downsample_null_fpr_log (kidney.fpr_plots).
+b: the AUPRC, the average precision of each replicate, as in Fig 1g.
+c: downsample_degs_100rep_pr_curves, with the method key and the p_sample key beside it, as in Fig 1.
+d: the share of null genes with uncorrected p below 0.05 on the downsampling null without DEGs
+(kidney.null_calibration.draw_calibration).
+e: downsample_degs_100rep_tpr_fpr with its key (kidney.spot_split_plots).
 
-    python -m figures.suppfig5      # from reproducibility/, a few seconds; needs kidney's downsampling results
+    python -m figures.suppfig5      # from reproducibility/, a few seconds; needs the downsampling results
 """
 
 import json

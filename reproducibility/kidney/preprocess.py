@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-"""Build the kidney arm's two inputs from the public Visium HD download.
+"""Build the two kidney inputs from the public Visium HD download.
 
-    python -m kidney.preprocess        # from reproducibility/
+    python -m kidney.preprocess        # from reproducibility/, about 9 minutes; downloads 6.5 GB
 
-Writes into kidney/data/, where umi_null, umi_de and spot_split look:
+Writes into kidney/data/, where umi_null, umi_de and spot_split read them:
 
-    podocytes_2um.h5ad             one row per 2um spot, with shape_id
+    podocytes_2um.h5ad             one row per 2 um spot, with shape_id
     merged_blobs_in_cluster_5.h5ad one row per capsule, counts summed
-
-Script form of preprocess.ipynb. Display-only cells are dropped; the
-commented-out QuPath and overlay plotting blocks are kept at the bottom,
-because cell 32 is the only record of how Podocytes_outline.png was drawn.
 """
 from __future__ import annotations
 
@@ -213,62 +209,6 @@ def main() -> None:
 
     print("\nDone.", flush=True)
 
-
-# ---------------------------------------------------------------------------
-# Kept from the notebook, never executed there either. write_qp_geojson_AB
-# splits capsules into A/B groups for QuPath; plot_scaled_gdf_on_image drew
-# Podocytes_outline.png, which has no other generator in the repository.
-#
-# def write_qp_geojson_AB(gdf, output_geojson_path, p=0.5, label_column="group"):
-#     """Randomly assign shapes to 'A'/'B' via Binomial(n, p), write QuPath GeoJSON."""
-#     if not isinstance(gdf, gpd.GeoDataFrame):
-#         raise TypeError("gdf must be a GeoDataFrame")
-#     if not (0.0 <= p <= 1.0):
-#         raise ValueError("p must be between 0 and 1")
-#     gdf_out = gdf.copy()
-#     n = len(gdf_out)
-#     if n == 0:
-#         raise ValueError("gdf has no rows")
-#     n_A = np.random.binomial(n, p)
-#     labels = np.array(["A"] * n_A + ["B"] * (n - n_A))
-#     perm = np.random.permutation(n)
-#     gdf_out[label_column] = None
-#     gdf_out.loc[gdf_out.index[perm], label_column] = labels
-#     gdf_out["classification"] = gdf_out[label_column]
-#     gdf_out["object_type"] = "annotation"
-#     gdf_out.to_file(output_geojson_path, driver="GeoJSON")
-#     return gdf_out
-#
-# gdf_out = write_qp_geojson_AB(tst, DATA / 'sample_capsule_2um_split.geojson')
-# write_qp_geojson_AB(tst, DATA / 'sample_capsule_2um_split_0poit3.geojson', p=0.3)
-# write_qp_geojson_AB(tst, DATA / 'sample_capsule_2um_split_0poit1.geojson', p=0.1)
-#
-# def plot_scaled_gdf_on_image(gdf, image, scale_factor, output_png_path,
-#                              line_color="green", line_width=1.0):
-#     """Scale gdf about the origin, overlay on image, save PNG."""
-#     from matplotlib.image import imread
-#     from shapely.affinity import scale as shp_scale
-#     import matplotlib.pyplot as plt
-#     gdf_scaled = gdf.copy()
-#     gdf_scaled["geometry"] = gdf_scaled["geometry"].apply(
-#         lambda geom: shp_scale(geom, xfact=scale_factor, yfact=scale_factor, origin=(0, 0))
-#     )
-#     img = imread(image) if isinstance(image, str) else image
-#     fig, ax = plt.subplots(figsize=(20, 20))
-#     ax.imshow(img, origin="upper")
-#     gdf_scaled.boundary.plot(ax=ax, color=line_color, linewidth=line_width)
-#     ax.set_aspect("equal")
-#     ax.set_xlabel("X")
-#     ax.set_ylabel("Y")
-#     ax.set_title(f"Scaled geometries (factor={scale_factor}) over image")
-#     plt.savefig(output_png_path, dpi=300, bbox_inches="tight")
-#     plt.close(fig)
-#
-# plot_scaled_gdf_on_image(gdf=gdf, scale_factor=0.13636674,
-#                          image=DATA / 'spatial/tissue_hires_image.png',
-#                          output_png_path='Podocytes_outline_new.png',
-#                          line_width=0.5, line_color='yellow')
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     main()

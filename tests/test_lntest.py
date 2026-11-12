@@ -1,14 +1,10 @@
 """Tests for LN's t-test.
 
-There is no upstream implementation to diff against -- LN's t-test is a new
-estimator, not a faster implementation of an existing test -- so correctness is
-pinned three ways instead:
-
-* an exact algebraic identity the estimator must satisfy, on a hand-built
-  matrix with round-number answers (``TestEstimand``);
-* agreement between the dense and sparse code paths (``TestArrayTypes``);
-* the calibration property the method exists for, measured against the baseline
-  it is meant to replace (``TestCalibration``).
+* An algebraic identity of the estimator, on a hand-built matrix with
+  round-number answers (``TestEstimand``).
+* The same results from dense and sparse input (``TestArrayTypes``).
+* The two terms of the standard error (``TestTrigamma``, ``TestLevelTerm``).
+* Calibration under the null, against the log1p t-test (``TestCalibration``).
 """
 from __future__ import annotations
 
@@ -21,12 +17,8 @@ from lntest import get_LN_lfcs, get_LN_lfcs_sparse, trigamma_diff
 
 ALPHA = 0.05
 
-# The dense and sparse entry points are one implementation: get_LN_lfcs
-# delegates to get_LN_lfcs_sparse. Two implementations of the same algebra had
-# cost ~1e-6 of disagreement, from float32 intermediates on the dense side,
-# which is outside the rtol=1e-5 scanpy asserts across array types. Everything
-# below is therefore held to float64 tolerance; a regression that reintroduces
-# a second code path will show up here first.
+# get_LN_lfcs delegates to get_LN_lfcs_sparse, so dense and sparse input agree
+# to float64 tolerance.
 FLOAT64_RTOL = 1e-12
 
 
@@ -99,8 +91,7 @@ class TestEstimand:
 
 
 class TestArrayTypes:
-    """Scanpy parameterizes its DE tests over dense, CSR and CSC, so any
-    divergence between code paths surfaces there first."""
+    """Dense, CSR and CSC input, which scanpy's DE tests use, give the same results."""
 
     def test_csr_and_csc_are_identical(self):
         rng = np.random.default_rng(7)
@@ -151,10 +142,10 @@ class TestArrayTypes:
 
 
 class TestTrigamma:
-    """The standard error's first term, pinned to ``1/a - 1/n``.
+    """The standard error's first term, ``1/a - 1/n``.
 
-    Swapping in the true trigamma moves every p-value in the sparse regime
-    while moving no log-fold change, so it hides. These tests catch it.
+    The true trigamma difference would change every p-value in sparse data without
+    changing any LFC.
     """
 
     @pytest.mark.parametrize("a, n", [(1, 5), (2, 2638), (50, 500), (500, 2638)])
@@ -162,7 +153,7 @@ class TestTrigamma:
         assert trigamma_diff(a, n) == 1.0 / a - 1.0 / n
 
     def test_is_not_the_exact_psi_1_difference(self):
-        """The gap is the whole reason this was an open question."""
+        """The paper's term differs from the exact trigamma difference."""
         a, n = 2, 2638
         exact = sum(1.0 / (j * j) for j in range(a, n))
         assert trigamma_diff(a, n) == pytest.approx(0.499621, abs=1e-6)
@@ -175,10 +166,9 @@ class TestTrigamma:
         )
 
     def test_undetected_gene_is_not_clamped(self):
-        """``a_hat = 0`` gives inf rather than being rounded up to 1.
+        """``a_hat = 0`` gives inf.
 
-        The published behaviour: callers filter those genes out. The exact form
-        this replaced did clamp, so the absence of clamping is load-bearing.
+        ``get_LN_lfcs_sparse`` sets ``a_hat`` to 1 for an undetected gene before calling it.
         """
         with np.errstate(divide="ignore"):
             assert np.isinf(trigamma_diff(0, 100))
@@ -235,14 +225,12 @@ class TestLevelTerm:
 
 
 class TestCalibration:
-    """The property the method exists for.
+    """Calibration under the null.
 
     Two groups drawn from negative binomials with equal means and different
-    dispersions contain no differentially expressed gene by construction. A
-    calibrated test rejects at the nominal rate. This is the failure mode the
-    paper proves for the log1p t-test, so the baseline is measured alongside as
-    a positive control: if it ever stops failing, the fixture no longer poses
-    the problem and the LN assertion has stopped meaning anything.
+    dispersions have no DEG. LN's t-test rejects at about the nominal rate. The
+    log1p t-test, which the paper shows fails here, is measured as a positive
+    control: if it stops failing, the fixture no longer poses the problem.
     """
 
     @staticmethod
@@ -274,9 +262,8 @@ class TestCalibration:
         assert float(np.mean(p_ln < ALPHA)) < 0.08
 
     def test_log1p_means_diverge_in_the_direction_the_theorem_predicts(self):
-        # Theorem 1: for equal-mean NBs, E[log1p(Y)] > E[log1p(X)] whenever
-        # Var(Y) < Var(X). Concavity of log1p is the mechanism behind every
-        # result above, so pin its direction, not only its consequence.
+        # For equal-mean NBs, E[log1p(Y)] > E[log1p(X)] whenever Var(Y) < Var(X),
+        # by the concavity of log1p.
         rng = np.random.default_rng(1)
         Y, X = self._equal_mean_unequal_variance(rng, phi_y=0.05, phi_x=2.0)
         assert Y.mean() == pytest.approx(X.mean(), rel=0.05)
@@ -284,12 +271,11 @@ class TestCalibration:
 
 
 class TestInputHandling:
-    """Regressions worth pinning now that dense input reaches the sparse path."""
+    """Input handling of the sparse path."""
 
     def test_dense_input_is_not_modified_in_the_callers_frame(self):
-        # _ensure_sparse_positive zeroes non-positive entries. Before it copied,
-        # a float64 array passed by a caller was edited in place -- silent, and
-        # invisible unless a negative value was present.
+        # _ensure_sparse_positive zeroes non-positive entries on a copy, not on
+        # the caller's array.
         Y = np.array([[5.0, -1.0, 3.0], [0.0, 2.0, 0.0], [1.0, 1.0, 1.0]])
         X = np.array([[2.0, 1.0, 1.0], [1.0, 0.0, 2.0], [1.0, 1.0, 1.0]])
         Y_before, X_before = Y.copy(), X.copy()

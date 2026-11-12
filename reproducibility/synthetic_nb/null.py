@@ -1,3 +1,15 @@
+"""The synthetic null: the FPR of each test on two groups of equal mean and different variance.
+
+Two groups of NX and NY cells and N_GENES negative binomial genes with a shared mean (--base-mu). On the ratio grid,
+Var(X) is FANOS times the mean and Var(Y)/Var(X) runs over RATIOS and EXTRA, a quarter-octave apart. The tests are
+LN's t-test, the log1p t-test and the tie-corrected Wilcoxon, with Bonferroni. The dispersion grid (--grid dispersion)
+gives every Var(X) the same 20 values of Var(Y), with the log1p t-test and LN's t-test only.
+
+    python -m synthetic_nb.null --base-mu 5                 # from reproducibility/, about 40 s
+    python -m synthetic_nb.null --base-mu 50
+    python -m synthetic_nb.null --base-mu 5 --plot-only     # redraw from the CSV
+"""
+
 import argparse
 
 import numpy as np
@@ -19,7 +31,7 @@ FANOS = [1, 2, 4, 8]  # ratio grid: Var(X) as multiples of the mean; 1 is Poisso
 RATIOS = 2.0 ** np.linspace(0, 4, 17)
 # Past 16, so every Wilcoxon curve saturates too; drawn after the whole RATIOS grid, so its values are unchanged.
 EXTRA = 2.0 ** np.linspace(4.25, 6, 8)
-# The tests each grid runs: the ratio grid is Fig 1c's; the dispersion grid reproduces RECOMB Fig 1, which had two.
+# The tests each grid runs. The ratio grid is Fig 1c's.
 TESTS = {'ratio': ('log1p t-test', "LN's t-test", 'Wilcoxon'), 'dispersion': ('log1p t-test', "LN's t-test")}
 
 
@@ -31,7 +43,7 @@ def draw_nb(mu, d, size):
 
 
 def d1_grid(base_mu, grid):
-    """Dispersions of X: the RECOMB grid's four, or Var(X) = FANOS * mean."""
+    """Dispersions of X: four values from 0.01 to 1 ('dispersion'), or Var(X) = FANOS * mean ('ratio')."""
     if grid == 'dispersion':
         return np.linspace(0.01, 1, 4)
     return (np.array(FANOS) - 1) / base_mu
@@ -40,8 +52,7 @@ def d1_grid(base_mu, grid):
 def d2_grid(d1, base_mu, grid, ratios=RATIOS):
     """Dispersions of Y to simulate against X's dispersion d1.
 
-    'dispersion' is the grid behind the RECOMB figure: the same Var(Y) values
-    for every Var(X). 'ratio' puts Var(Y)/Var(X) on RATIOS instead.
+    'dispersion' gives every Var(X) the same 20 values of Var(Y). 'ratio' puts Var(Y)/Var(X) on RATIOS.
     """
     if grid == 'dispersion':
         return np.linspace(0.0001, 2, 20)
@@ -83,8 +94,9 @@ def draws(base_mu, seed=0, grid='ratio'):
 
 
 def simulate(base_mu, metric, seed=0, grid='ratio'):
-    """One row per (Var(X), Var(Y), test): the metric over N_GENES null genes; within a Var(X)'s run, each test's
-    values over Var(Y) together, as the sweep has always written them."""
+    """One row per (Var(X), Var(Y), test): the metric over N_GENES null genes. Within the run of one
+    Var(X), each test's values over Var(Y) come together.
+    """
     true_lfcs = np.zeros((1, N_GENES))
     rows, run, current = [], [], None
     for var_x, var_y, X, Y in draws(base_mu, seed, grid):
@@ -138,13 +150,12 @@ if __name__ == '__main__':
         description="Null-scenario FPR/accuracy against Var(Y): LN's t-test, the log1p t-test and, on the ratio grid, Wilcoxon."
     )
     ap.add_argument('--base-mu', type=float, default=50,
-                    help="shared NB mean (was hardcoded). RECOMB's var_v_fpr.png "
-                         "came from 5; var_v_fpr_large_mu.png from this default")
+                    help="the NB mean of both groups")
     ap.add_argument('--metric', default='fpr', choices=['fpr', 'accuracy'])
     ap.add_argument('--seed', type=int, default=0)
     ap.add_argument('--grid', default='ratio', choices=['ratio', 'dispersion'],
-                    help="how Var(Y) is sampled; 'dispersion' reproduces the RECOMB figure "
-                         "and the reference checksums")
+                    help="how Var(Y) is sampled: Var(Y)/Var(X) on a grid ('ratio'), or the same "
+                         "20 values of Var(Y) for every Var(X) ('dispersion')")
     ap.add_argument('--plot-only', action='store_true',
                     help="redraw the figure from this sweep's CSV without re-simulating")
     args = ap.parse_args()

@@ -1,7 +1,7 @@
 """Two negative binomials with the same mean but different variances, before and after log1p.
 
-The counts share their mean; their log1p means do not, which is what biases a t-test on
-log1p-transformed data when the groups differ in variance.
+The counts share their mean, but their log1p means differ. This difference biases a t-test on log1p-transformed data
+when the groups differ in variance.
 
     python -m theory.log1p_toy      # from reproducibility/
 """

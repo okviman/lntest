@@ -1,8 +1,5 @@
-"""
-Shared utilities for differential expression in the reproducibility folder.
-
-Provides: layer preparation (counts, norm_counts, log1p_norm), LN test, t-test,
-wilcoxon, and MAST. Used by celltype, clustering, and subsampling scripts.
+"""Shared DE helpers: AnnData layers (counts, norm_counts, log1p_norm), LN's t-test, scanpy's t-test and Wilcoxon, MAST
+through rpy2.
 """
 
 import numpy as np

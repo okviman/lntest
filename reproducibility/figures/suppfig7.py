@@ -1,20 +1,21 @@
-"""Supplementary Fig 7: the PBMC multi-resolution clustering beyond Fig 2, assembled from clustering.multires_depth's,
-clustering.multires_gaps' and clustering.marker_rule's drawing code.
+"""Supplementary Fig 7: the PBMC multi-resolution clustering beyond Fig 2, assembled from the drawing code of
+clustering.multires_depth, clustering.multires_gaps and clustering.marker_rule.
 
-Every Leiden cluster at five resolutions against the rest. a, PBMC3k: the variance ratio to the rest at equal mean, a
-box at each number of clusters, every cluster a point, as Fig 2e for PBMC10k; b, both datasets: each cluster's variance
-ratio against its |log2 depth ratio|, with the Spearman correlation; c, d, PBMC10k and PBMC3k: each test's median score
-over the cluster's expressed genes against its log2 depth ratio, with its least-squares line and Pearson r. e, PBMC3k:
-the share of each rule's top 20 that are Monaco et al. 2019's immune housekeeping genes, as Fig 2f for PBMC10k; f, g,
-PBMC10k and PBMC3k: the share of the top 20 that the Human Protein Atlas (25.1) calls enriched for the cluster's
-majority type; e-g the mean over each resolution's clusters with bars of one standard error. The clusters' DEGs and their
-effect sizes are Extended Data Fig 4. The method key beside d, the key of the marker rules beside g. Each plot is drawn
-by its own drawing code from the saved results, at the size it prints at; a change to a plot belongs in that code.
+Every Leiden cluster at five resolutions is tested against the rest.
+a, PBMC3k: the variance ratio to the rest at equal mean, one box per number of clusters, every cluster a point, as in
+Fig 2e for PBMC10k.
+b, both data sets: the variance ratio of each cluster against its |log2 depth ratio|, with the Spearman correlation.
+c, d, PBMC10k and PBMC3k: the median score of each test over the expressed genes of the cluster against its log2 depth
+ratio, with the least-squares line and Pearson r.
+e, PBMC3k: the share of the immune housekeeping genes of Monaco et al. 2019 in the top 20 of each rule, as in Fig 2f
+for PBMC10k.
+f, g, PBMC10k and PBMC3k: the share of the top 20 that the Human Protein Atlas (25.1) calls enriched for the majority
+type of the cluster.
+In e-g, the mean over the clusters of each resolution with bars of one standard error. The method key is beside d and
+the key of the marker rules beside g. The DEGs of the clusters and their effect sizes are Extended Data Fig 4.
 
-    python -m figures.suppfig7      # from reproducibility/, seconds; needs multires_depth's, multires_gaps' and marker_rule's results
-    python -m figures.suppfig7 --pbmc10k-only   # the version without PBMC3k, suppfig7_pbmc10k.pdf: PBMC10k's median score
-                                           # against depth, variance ratio against |log2 depth ratio|, HPA share,
-                                           # and the key
+    python -m figures.suppfig7      # from reproducibility/, seconds; needs the results of multires_depth, multires_gaps and marker_rule
+    python -m figures.suppfig7 --pbmc10k-only   # suppfig7_pbmc10k.pdf, the PBMC10k panels only
 """
 
 import argparse

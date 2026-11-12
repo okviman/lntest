@@ -1,14 +1,14 @@
-"""Lymph node block: the B-cell follicles against the T-cell zone, the T-cell zone's reads thinned and the follicles
-whole, so the T-cell zone's variance grows; assembled from lymphnode.depth_imbalance's and lymphnode.depth_gsea's
-drawing code.
+"""The B-cell follicles against the T-cell zone of the lymph node, with the reads of the T-cell zone thinned and the
+follicles whole, a figure outside the paper. Assembled from the drawing code of lymphnode.depth_imbalance and
+lymphnode.depth_gsea.
 
-a, b, each method's AUPRC of the T-cell zone's and of the B-cell follicles' pseudo-bulk markers, 20 replicates per
-condition; c, the Spearman correlation between each method's Hallmark NES and the pseudo-bulk reference's, 10
-replicates; each method's mean and SD at each fraction p of the T-cell zone's reads kept (1, the unthinned
-data). Each plot is drawn by its own drawing code from the saved results; a change to a plot belongs in that
-code.
+a, b, the AUPRC of each method for the pseudo-bulk markers of the T-cell zone (a) and of the B-cell follicles (b), over
+20 replicates per condition.
+c, the Spearman correlation between the Hallmark NES of each method and of the pseudo-bulk reference, over 10 replicates.
+In each panel, the mean and SD of each method at each fraction p of the reads of the T-cell zone kept (1 for the
+unthinned data).
 
-    python -m figures.lymphnode_story      # from reproducibility/, seconds; needs depth_imbalance's and depth_gsea's results
+    python -m figures.lymphnode_story               # from reproducibility/, seconds; needs the results of depth_imbalance and depth_gsea
     python -m figures.lymphnode_story --thin bins   # the spot version, lymphnode_story_bins.pdf
 """
 

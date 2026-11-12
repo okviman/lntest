@@ -1,12 +1,12 @@
-"""Extended Data Fig 2: comparison with MAST and runtime scaling, assembled from the arm's drawing code.
+"""Extended Data Fig 2: comparison with MAST and runtime scaling, assembled from the drawing code of synthetic_nb.
 
-a, b: at μ = 5 and 50, the FPR at Bonferroni 0.05 of LN's t-test, the log1p t-test, the Wilcoxon and MAST against
-Var(Y)/Var(X), Var(X) = μ (solid) and 4μ (short dashes), over the 10% of genes whose variance differs while the
-rest are unchanged (synthetic_nb.null_mast); c: each test's
-median wall time against the number of cells, 2,000 genes (synthetic_nb.runtime). One key. Each plot is drawn by its own
-drawing code from the saved results, at the size it prints at; a change to a plot belongs in that code.
+a, b: the FPR at Bonferroni 0.05 of LN's t-test, the log1p t-test, the Wilcoxon and MAST against Var(Y)/Var(X), at
+μ = 5 (a) and 50 (b), with Var(X) = μ (solid) or 4μ (short dashes). The FPR is over the 10% of genes whose variance
+differs, the other genes being unchanged (synthetic_nb.null_mast).
+c: the median wall time of each test against the number of cells, on 2,000 genes (synthetic_nb.runtime).
+One method key for all panels.
 
-    python -m figures.edfig2      # from reproducibility/, seconds; needs null_mast's and runtime's CSVs
+    python -m figures.edfig2      # from reproducibility/, seconds; needs the CSVs of null_mast and runtime
 """
 
 import matplotlib.pyplot as plt

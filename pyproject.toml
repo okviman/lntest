@@ -3,11 +3,8 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-# The PyPI distribution name. It is NOT the import name, which stays `lntest`
-# (see [tool.setuptools] below). PyPI rejected `lntest` as "too similar to an
-# existing project" -- `intest` exists, and PyPI treats l/i/1 as confusable to
-# block typosquatting. So: pip install ln-ttest, then `from lntest import ...`,
-# the way scikit-learn installs and imports as sklearn.
+# The distribution name. The import name is `lntest` (PyPI refuses `lntest` as
+# too close to the existing `intest`).
 name = "ln-ttest"
 version = "0.3.0"
 description = "LN's t-test: differential expression testing on an asymptotically unbiased log-fold-change estimator"
@@ -32,28 +29,19 @@ classifiers = [
 dependencies = [
     "numpy>=1.23",
     "scipy>=1.9",
-    # For Benjamini-Hochberg, imported lazily inside the branch that uses it --
-    # the same arrangement scanpy has, which declares statsmodels>=0.14.5 and
-    # imports multipletests inside `_rank_genes_groups.py`. Correcting the same
-    # way scanpy does is worth more than shedding the dependency, and every
-    # scanpy user already has it.
+    # Benjamini-Hochberg, as scanpy computes it.
     "statsmodels>=0.13",
 ]
 
 [project.urls]
-# The shared repository, not the fork this happens to be developed on.
-# Renamed from DE-ZILN to lntest on 2026-09-11; the old URL still redirects, but
-# a package's metadata should name the repository as it is.
 Homepage = "https://github.com/okviman/lntest"
 Source = "https://github.com/okviman/lntest"
 
 [project.optional-dependencies]
-# anndata and pandas are needed only to *build* the objects the wrapper is
-# called with. The wrapper is duck-typed and never imports either, so they are
-# test dependencies rather than runtime ones. scanpy is here so the corr_method
-# tests can check we stay interchangeable with scanpy's own correction.
+# The package never imports anndata or pandas. The tests build AnnData objects
+# and compare the correction with scanpy's.
 test = ["anndata>=0.9", "pandas>=1.5", "scanpy>=1.10", "pytest>=7"]
-anndata = []  # kept as an accepted-but-empty alias; the extra is no longer needed
+anndata = []  # empty, so that `pip install ln-ttest[anndata]` still works
 
 [tool.setuptools]
 packages = ["lntest"]

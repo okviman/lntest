@@ -25,18 +25,14 @@
 # 2.6 GB) and the extracted tree plus the intermediates need well over that
 # again on disk. Everything lands in lymphnode/data/, which is gitignored.
 #
-# Needs geopandas, shapely and pyarrow on top of the base environment -- they
-# are in reproducibility/env.yaml, but an older env predating this script will
-# not have them.
+# Needs geopandas, shapely and pyarrow, which reproducibility/env.yaml installs.
 #
-# Usage:  bash reproduce_vishd_cluster1_cluster3.sh
+# Usage:  bash lymphnode/reproduce_vishd_cluster1_cluster3.sh     # from reproducibility/
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA="${DATA:-$HERE/data}"
-# Hosein ran this with an absolute path to his own conda interpreter
-# (/home/hosein.toosi/ovary/conda/bin/python). Defaulted to whatever
-# python is on PATH -- activate de-ziln-reproducibility first, or set PY=.
+# The python on PATH: activate de-ziln-reproducibility first, or set PY=.
 PY="${PY:-python}"
 FORCE="${FORCE:-0}"
 

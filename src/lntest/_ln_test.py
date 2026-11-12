@@ -1,112 +1,17 @@
 from __future__ import annotations
 import numpy as np
+import scipy.sparse as sp
 import scipy.stats as stats
 from scipy.stats.distributions import t
-# from scipy.special import polygamma
-# from typing import Optional, Sequence
-# import math
 
 
 def trigamma_diff(a, n):
     """``psi_1(a) - psi_1(n)`` with ``psi_1(z) = 1/z``, as the paper defines it.
 
-    Not an approximation to "fix" to the true trigamma: that breaks the
-    unbiasedness identity ``theta_hat = a_hat / n`` by up to 37%. No clamping,
-    so ``a_hat = 0`` gives ``inf``.
+    Not an approximation to the true trigamma function, which would break the
+    unbiasedness of ``theta_hat = a_hat / n``. ``a = 0`` gives ``inf``.
     """
     return 1.0 / np.asarray(a, dtype=float) - 1.0 / float(n)
-
-
-def digamma(x):
-    return np.log(x) - 1 / (2 * x)
-
-# def trigamma(x):
-#         return 1 / x  + 0.5 / (x ** 2) +  1/(6.0*x**3)
-
-def log_beta_param_estimates(a, b):
-    """Mean and variance of log Beta(a, b).
-
-    The variance uses :func:`trigamma_diff`, giving 0.198020 at a=5, b=500 --
-    the value ``fig:beta_v_ln_vis`` was drawn with.
-    """
-    mu = digamma(a) - digamma(a + b)
-    sigma_2 = trigamma_diff(a, a + b)
-    return mu, sigma_2
-
-
-def intervals_ln(log_x, n, z=1.96):
-    mu_bar = np.mean(log_x)
-    sigma_bar = np.var(log_x)
-
-    se = np.sqrt(sigma_bar / n + sigma_bar ** 2 / (2 * (n - 1)))
-    log_intervals = mu_bar + sigma_bar / 2 + z * np.array([-se, se])
-    antilog_interval = np.exp(log_intervals)
-    return antilog_interval, mu_bar, sigma_bar
-
-
-def intervals_beta(a, b, z=1.96):
-    mu_log_beta, var_log_beta = log_beta_param_estimates(a, b)
-    se = np.sqrt(var_log_beta)
-    log_intervals = mu_log_beta + var_log_beta / 2 + z * np.array([-se, se])
-    antilog_interval = np.exp(log_intervals)
-    return antilog_interval, mu_log_beta, var_log_beta
-
-
-def get_intervals(log_x, a, b, z=1.96, model='lognormal', eps=0.):
-    if model == 'naive':
-        return interval_naive(log_x, b, z)
-    n = log_x.size
-    if n > 1:
-        _, mu_bar, sigma_bar = intervals_ln(log_x, n, z)
-        squared_standard_error_ln = sigma_bar / n + (sigma_bar ** 2) / (2 * (n - 1))
-    else:
-        # if there are only zero or one positive values, the mean estimate will be based on the log Beta mean
-        mu_bar, sigma_bar = 0, 0
-        squared_standard_error_ln = 0
-    _, mu_log_beta, var_log_beta = intervals_beta(a + eps ** n, b, z)
-
-    squared_standard_error_log_beta = var_log_beta
-    se = np.sqrt(squared_standard_error_ln + squared_standard_error_log_beta)
-
-    # estimate of the log of the mean of the ZILN
-    a_hat = a + eps ** n
-    log_mean_estimate = mu_bar + sigma_bar / 2 + np.log(a_hat / (a + b))
-    # log_mean_estimate = mu_bar + sigma_bar / 2 + mu_log_beta + var_log_beta / 2
-
-    log_intervals = log_mean_estimate + z * np.array([-se, se])
-    antilog_interval = np.exp(log_intervals)
-    return antilog_interval, log_mean_estimate, se
-
-def interval_naive(log_x, N_0, z=1.96):
-    zeros = np.zeros(N_0)
-    data = np.concatenate([np.exp(log_x), zeros])
-    n = data.size
-    # sample mean
-    mu_bar = np.mean(data)
-    # use log as exp is used outside function
-    log_mu_bar = np.log(mu_bar)
-    sigma_bar = np.var(data)
-    se = np.sqrt(sigma_bar / n)
-    intervals = mu_bar + z * np.array([-se, se])
-    return intervals, log_mu_bar, se
-
-
-def get_intervals_synthetic_data(true_mu, true_sigma_2, true_theta, experiments=1000,
-                                 n=500, z=1.96, model='lognormal', seed=0):
-    # note: true_sigma_2 neq true variance, it's the var of the data-generating normal distribution
-    np.random.seed(seed)
-    intervals = np.zeros((2, experiments))
-    estimated_means = np.zeros(experiments)
-    for i in range(experiments):
-        y = np.random.binomial(1, true_theta, n)
-        N_plus = y.sum()
-        N_0 = n - N_plus
-
-        log_x = np.random.normal(true_mu, np.sqrt(true_sigma_2), y.sum())
-        antilog_interval, log_mean_estimate, se = get_intervals(log_x, N_plus, N_0, z, model)
-        intervals[:, i] = antilog_interval
-        estimated_means[i] = np.exp(log_mean_estimate)
-    return intervals, estimated_means
 
 
 def get_LN_lfcs(Y_, X_, normalize=True, test='t', normalization='CP10K',
@@ -114,11 +19,7 @@ def get_LN_lfcs(Y_, X_, normalize=True, test='t', normalization='CP10K',
                 return_log_abs_statistic=False):
     """LN's t-test on two count matrices (cells x genes), dense or sparse.
 
-    Delegates to :func:`get_LN_lfcs_sparse`, which accepts dense input and
-    converts it, so the dense and sparse paths are one implementation and cannot
-    drift apart. Keeping them separate had cost ~1e-6 of disagreement from
-    float32 intermediates on the dense side -- enough to exceed the 1e-5
-    tolerance scanpy asserts across array types.
+    The same test as :func:`get_LN_lfcs_sparse`, which accepts dense input too.
     """
     return get_LN_lfcs_sparse(
         Y_,
@@ -132,23 +33,11 @@ def get_LN_lfcs(Y_, X_, normalize=True, test='t', normalization='CP10K',
     )
 
 
-import numpy as np
-
-try:
-    import scipy.sparse as sp
-except ImportError:
-    sp = None
-
-
 def _ensure_sparse_positive(A):
     """
     Return CSR sparse matrix containing only strictly positive entries.
-    Non-positive entries are dropped rather than masked to NaN; the estimator
-    treats them as absent either way.
+    Non-positive entries are dropped, since the estimator treats them as absent.
     """
-    if sp is None:
-        raise ImportError("scipy.sparse is required for the sparse implementation.")
-
     if not sp.issparse(A):
         # np.array, not np.asarray: the next line writes into A, and a float64
         # input would otherwise be modified in the caller's frame.
@@ -200,10 +89,7 @@ def _geom_mean_nonzero_per_gene(A_csc):
 
 
 def _median_of_ratios_sparse(A_csr):
-    """
-    DESeq2 median-of-ratios, ignoring zeros.
-    This is the only part that uses a per-row loop (still O(nnz)).
-    """
+    """Each row divided by its DESeq2 median-of-ratios size factor, over the nonzero entries."""
     A_csc = A_csr.tocsc()
     denom = _geom_mean_nonzero_per_gene(A_csc)
 
@@ -220,7 +106,6 @@ def _median_of_ratios_sparse(A_csr):
             c[i] = 1.0
             continue
         ratios = data[s:e] / denom[indices[s:e]]
-        # guard against weird denom / inf
         ratios = ratios[np.isfinite(ratios) & (ratios > 0)]
         c[i] = np.median(ratios) if ratios.size else 1.0
 
@@ -270,16 +155,41 @@ def get_LN_lfcs_sparse(
     return_log_abs_statistic=False,
     eps=1e-12,
 ):
-    """
-    Sparse implementation of the LN log-fold-change estimator and test.
+    """LN's t-test of every gene, between the cells of ``Y_`` and the cells of ``X_``.
 
-    Expects Y_, X_ to be scipy sparse (CSR/CSC) matrices (cells x genes).
-    Zeros and non-positives are treated as *absent*, and moments are computed
-    over strictly-positive entries only.
-    """
-    if sp is None:
-        raise ImportError("scipy.sparse is required for sparse Y_/X_.")
+    Parameters
+    ----------
+    Y_, X_
+        Counts of the two groups, cells x genes, dense or scipy sparse, with the
+        same genes in the same order. Zero and negative values count as not
+        detected.
+    normalize
+        Whether to normalize each cell first, by ``normalization``.
+    test
+        ``"t"`` for the t-test with Welch's degrees of freedom, any other value
+        for a z-test.
+    normalization
+        ``"CP10K"`` (counts per 10,000) or ``"median-of-ratios"`` (DESeq2's size
+        factors, over the nonzero values).
+    return_standard_error, return_statistic, return_log_abs_statistic
+        At most one can be set. ``return_standard_error`` adds the standard
+        error of the LFC, ``return_statistic`` the test statistic, and
+        ``return_log_abs_statistic`` the statistic and the log of its absolute
+        value, which stays finite where the statistic overflows.
+    eps
+        Floor on the mean of the positive values before its log is taken.
 
+    Returns
+    -------
+    lfc
+        The log2-fold change of ``Y_`` over ``X_``.
+    p_vals
+        Two-sided p-values, not corrected for multiple testing.
+
+    Followed by the quantities the return flags select. A group in which no cell
+    detects a gene counts as one cell with value 1. A gene that neither group
+    detects has LFC 0, statistic 0 and p-value 1.
+    """
     Y = _ensure_sparse_positive(Y_)
     X = _ensure_sparse_positive(X_)
 
@@ -294,7 +204,6 @@ def get_LN_lfcs_sparse(
         Y = _cp10k_sparse(Y)
         X = _cp10k_sparse(X)
     elif normalize and (normalization == "median-of-ratios"):
-        # Works, but slower than CP10K due to per-row medians.
         Y = _median_of_ratios_sparse(Y)
         X = _median_of_ratios_sparse(X)
 
@@ -307,7 +216,6 @@ def get_LN_lfcs_sparse(
     a_hat_Y[~all_zeros_Y] = n_plus[~all_zeros_Y]
     a_hat_X = np.ones(G, dtype=np.float64)
     a_hat_X[~all_zeros_X] = n_plus_prime[~all_zeros_X]
-
 
     # log2 theta hats
     log2_theta_hat_Y = np.log2(a_hat_Y / float(n))
@@ -354,10 +262,6 @@ def get_LN_lfcs_sparse(
     statistic[absent] = 0.0
     p_vals[absent] = 1.0
 
-    # The three return flags select what comes back after (lfc, p_vals) and are
-    # mutually exclusive. Setting more than one raises rather than silently
-    # picking whichever the branch order happens to reach first: a caller that
-    # asks for two quantities and is handed one has no way to notice.
     _asked = [n for n, v in (("return_standard_error", return_standard_error),
                              ("return_statistic", return_statistic),
                              ("return_log_abs_statistic", return_log_abs_statistic)) if v]
@@ -376,10 +280,8 @@ def get_LN_lfcs_sparse(
         return lfc, p_vals, statistic
 
     if return_log_abs_statistic:
-        # log|t| in log space: log|d| - 0.5*log(se^2). Identical to
-        # log(abs(statistic)) in exact arithmetic, but finite where the
-        # statistic itself overflows -- which is what GSEA ranking needs, since
-        # genes tied at inf carry no ordering.
+        # log|t| = log|lfc| - log(se), finite where the statistic overflows, so
+        # genes keep their order when ranked for GSEA.
         se_combined_sq = se_Y**2 + se_X**2
         tiny = np.finfo(float).tiny
         log_abs = (np.log(np.abs(lfc) + tiny)
@@ -389,23 +291,15 @@ def get_LN_lfcs_sparse(
     return lfc, p_vals
 
 
-
-def transform(z):
-    # log(10000 * z / z.sum(over genes for each cell) + 1)
-    return np.log((z * 1e4 / z.sum(1, keepdims=True)) + 1)
-
-
 def compute_p_vals(mean1, mean2, se1, se2):
-    # Compute the test statistic
+    """The z statistic of ``mean1 - mean2`` and its two-sided p-value."""
     z_stat = (mean1 - mean2) / ((se1 ** 2 + se2 ** 2) ** 0.5)
-
-    # Compute the p-value for the two-tailed test
     p_value = 2 * (1 - stats.norm.cdf(abs(z_stat)))
-
     return z_stat, p_value
 
+
 def get_t_statistic(mean1, mean2, se1, se2, n1, n2):
-    # implements two-sided t-test
+    """The t statistic of ``mean1 - mean2`` and its two-sided p-value, with Welch's degrees of freedom."""
     nu1, nu2 = n1 - 1, n2 - 1
     df = (se1 ** 2 + se2 ** 2) ** 2 / (se1 ** 4 / nu1 + se2 ** 4 / nu2)
     d = mean1 - mean2
@@ -414,4 +308,3 @@ def get_t_statistic(mean1, mean2, se1, se2, n1, n2):
     t_dist = t(df)
     p_value = 2 * t_dist.sf(np.abs(t_statistic))
     return t_statistic, p_value
-

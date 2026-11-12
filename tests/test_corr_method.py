@@ -1,21 +1,8 @@
-"""The multiple-testing correction must stay interchangeable with scanpy's.
+"""The multiple-testing correction of ``rank_genes_groups_ln`` matches scanpy's.
 
-``rank_genes_groups_ln`` is meant to be usable where ``sc.tl.rank_genes_groups``
-is, and one day dispatched to from inside it. That makes the correction a
-compatibility surface, not an implementation detail: a user who switches
-``method=`` and gets differently-adjusted p-values has found a bug in us, not a
-feature.
-
-So this file does not check the arithmetic against a textbook. It checks it
-against scanpy:
-
-* the accepted vocabulary is scanpy's ``avail_corr``, read from scanpy at test
-  time so that a change upstream shows up here rather than in a user's results;
-* feeding scanpy's own p-values through our correction reproduces scanpy's own
-  adjusted p-values, for both methods.
-
-The second is the one that matters. It is not circular -- scanpy's numbers come
-out of ``sc.tl.rank_genes_groups`` on real data, and ours have to land on them.
+The accepted methods are scanpy's, read from scanpy at test time. scanpy's own
+p-values, passed through the correction of this package, give scanpy's adjusted
+p-values for both methods.
 """
 from __future__ import annotations
 
@@ -60,13 +47,7 @@ def scanpy_de(ad, corr_method):
 
 class TestVocabularyMatchesScanpy:
     def test_we_accept_exactly_what_scanpy_accepts(self, scanpy_run):
-        """Reads scanpy's own set at runtime, so an upstream change is caught
-        here rather than in a user's results.
-
-        The set is taken from the error scanpy raises rather than from a private
-        name: ``_CorrMethod`` lives under ``TYPE_CHECKING`` and is not importable,
-        and the message is the part users actually see.
-        """
+        """scanpy's accepted methods, read from the error it raises, since ``_CorrMethod`` is not importable."""
         import re
 
         with pytest.raises(ValueError) as excinfo:
@@ -81,8 +62,7 @@ class TestVocabularyMatchesScanpy:
             _adjust_pvalues(np.array([0.1, 0.2]), "fdr_bh", 2)
 
     def test_statsmodels_spelling_is_not_silently_accepted(self):
-        """`fdr_bh` is statsmodels' name, not scanpy's. Rejecting it keeps the
-        two vocabularies from quietly diverging."""
+        """`fdr_bh`, statsmodels' name, is not accepted."""
         assert "fdr_bh" not in CORR_METHODS
 
     def test_default_is_scanpys(self):
@@ -106,8 +86,7 @@ class TestReproducesScanpysAdjustment:
         np.testing.assert_allclose(q_ours, q_scanpy, rtol=1e-6, atol=1e-12)
 
     def test_bonferroni_uses_the_gene_count_not_the_array_length(self):
-        """n_genes is passed in because a truncated result must still be
-        corrected over the full family, exactly as scanpy does."""
+        """A truncated result is corrected over all genes, as in scanpy."""
         p = np.array([0.01, 0.02])
         np.testing.assert_allclose(_adjust_pvalues(p, "bonferroni", 100),
                                    [1.0, 1.0])
@@ -115,7 +94,7 @@ class TestReproducesScanpysAdjustment:
                                    [0.02, 0.04])
 
     def test_nan_pvalues_are_treated_as_one_before_correcting(self):
-        """scanpy does `pvals[np.isnan(pvals)] = 1` first; so do we."""
+        """NaN p-values count as 1 before the correction, as ``pvals[np.isnan(pvals)] = 1`` does in scanpy."""
         p = np.array([0.001, np.nan, 0.5])
         q = _adjust_pvalues(p, "benjamini-hochberg", 3)
         assert np.all(np.isfinite(q))
